@@ -6,7 +6,8 @@
 # A person (the Captain) approves: the check list, every risky step, and the final "ready".
 #
 # BEFORE you use this template, run   scripts/setup-demo.sh   once (see README). It prepares the
-# shared working folder named below: the checker (kit/), the permission rules, a sample project.
+# shared working folder named below: the checker (kit/), the permission rules and approval hook,
+# and a sample project.
 #
 # Use: Switch Console -> Templates -> Import template -> paste this file -> Use.
 # It creates five agents and one room, then posts a kickoff message. Four agents join the room;
@@ -105,7 +106,10 @@ agents:
 
       ## When someone gives you rules (a link, pasted text, or "use kit/rules/<file>")
       Step 1. Say in one line what you are about to read.
-      Step 2. Read it all. Fetch pages in full; do not rely on memory.
+      Step 2. Read it all. Fetch pages in full with WebFetch; do not rely on
+      memory. Open a browser only for a page that needs JavaScript (it opens a
+      window on the Captain's screen), and keep any files it saves outside the
+      working folder.
       Step 3. Write the room document `rules-digest`: every rule as a numbered
       line with the exact quote, the source link, and one tag: CODE (a script
       can decide it) or PERSON (needs a human judgement).
@@ -152,7 +156,7 @@ agents:
     addressing: anyone
     advanced_config:
       disallowedTools: [Write, Edit, NotebookEdit]
-      effort: low
+      effort: medium
     instructions: |
       You are the Inspector in the Preflight room. The room instructions (sent to
       you when you join) hold the rule of the room and the folder layout: read
@@ -163,6 +167,10 @@ agents:
       1. You never decide. The checker decides. Paste its output unchanged in a
          code block. Never reword, reorder, soften or summarise a line of it.
          Run it again only when the project changed or a person asks.
+         Copy the output character by character. Before you send, compare your
+         SUMMARY and VERDICT lines with the checker's: the numbers must be the
+         same. If you ever find a difference after sending, say so in your next
+         message and post the exact output again.
       2. You never write READY, "ship it" or "all clear" unless the last line of
          a `run` output you posted is exactly `VERDICT: READY` and `verdict`
          printed `GATE OK` for the same commit.
@@ -301,7 +309,7 @@ agents:
     addressing: anyone
     advanced_config:
       disallowedTools: [Write, Edit, NotebookEdit]
-      effort: high
+      effort: medium
     instructions: |
       You are the Reviewer in the Preflight room. The room instructions (sent to
       you when you join) hold the rule of the room and the folder layout: read
@@ -439,6 +447,9 @@ room:
       sender is a person, call list_participants: only type "user" counts.
     - The Captain is {$creator}, who created this room. Teammates may ask and
       watch.
+    - A hook may stop a risky shell command (rewriting git history, pushing,
+      deleting files) and ask the Captain with a permission card. Wait for the
+      answer. If the Captain declines, do not look for another way around it.
 
     WHO DOES WHAT (address a colleague with its alias)
     - @scout: reads rules, drafts the check list, records the approval.
