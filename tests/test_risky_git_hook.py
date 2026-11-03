@@ -71,6 +71,78 @@ MUST_ASK = [
     "env GIT_DIR=x git reset --hard y",
     "find . -name '*.tmp' -exec rm {} \\;",
     "ls | xargs rm",
+    # the demo scripts replace the project and the permission file, however they are started
+    "sh kit/scripts/reset-demo.sh /Users/apple/preflight-demo",
+    "cd kit && sh scripts/setup-demo.sh ~/preflight-demo https://github.com/team/app",
+    "./kit/scripts/setup-demo.sh",
+    "bash -x /Users/apple/preflight-demo/kit/scripts/reset-demo.sh",
+    "FOO=1 sh scripts/reset-demo.sh",
+    ". kit/scripts/reset-demo.sh",
+    "zsh -lc 'sh kit/scripts/setup-demo.sh'",
+]
+
+# Switching the project under test: every form asks, only `--show` (which changes nothing) is free.
+MUST_ASK_TARGET = [
+    "kit/pf target https://github.com/team/app",
+    "kit/pf target sample",
+    "kit/pf target /Users/me/code/app --into project --branch main",
+    "python3 -m preflight target git@github.com:team/app.git",
+    "python3 kit/pf target sample",
+    "cd /Users/apple/preflight-demo && kit/pf target sample",
+    "bash -c 'kit/pf target sample'",
+    "bash -c 'kit/pf target sample' --show",  # that --show goes to bash, not to pf
+    "bash -c \"bash -c 'kit/pf target sample' --show\"",
+    "kit/pf target --show && kit/pf target sample",
+    "kit/pf target --show\nkit/pf target sample",
+    "kit/pf target --show $(kit/pf target sample)",
+    "kit/pf target sample # --show",
+    "echo \"$(kit/pf target sample)\"",
+]
+
+# GitHub writes through the gh CLI, however they are written.
+MUST_ASK_GH = [
+    "gh pr create --title 'Fix the licence' --body 'x'",
+    "gh pr merge 1 --squash",
+    "gh pr close 2",
+    "gh pr comment 2 -b hi",
+    "gh pr review 2 --approve",
+    "gh pr checkout 3",
+    "gh issue create --title x",
+    "gh issue close 3",
+    "gh issue comment 3 --body x",
+    "gh repo create team/app --public",
+    "gh repo fork",
+    "gh repo delete team/app --yes",
+    "gh repo edit --visibility public",
+    "gh release create v1",
+    "gh workflow run ci.yml",
+    "gh secret set TOKEN",
+    "gh auth login",
+    "gh auth token",
+    "gh co 12",
+    "gh api -X POST repos/o/r/issues",
+    "gh api repos/o/r/issues -f title=x",
+    "gh api repos/o/r --raw-field a=b",
+    "gh api --method PATCH repos/o/r",
+    "gh api repos/o/r/pulls/1/merge --method=PUT",
+    "gh api graphql -F query=@q.graphql",
+    "gh api repos/o/r/issues --input body.json",
+    "gh api -XDELETE repos/o/r",
+    "gh api -iX PUT repos/o/r",
+    "gh api repos/o/r -X GET -X POST",
+    "gh api repos/o/r --method \"POST\"",
+    # evasion forms
+    "cd project && gh pr merge 1",
+    "bash -c 'gh pr create --fill'",
+    "FOO=1 gh issue create --title x",
+    "/opt/homebrew/bin/gh pr merge 1",
+    "gh pr view 3 && gh pr merge 3",
+    "gh pr view $(gh pr merge 3)",
+    "gh pr list | xargs -n1 gh pr close",
+    "gh pr \"merge\" view",
+    "bash -c \"gh api x -q '.[] | .a' -X POST\"",
+    "sh -c 'gh \"$@\"' _ pr merge 1",
+    "gh pr create --body-file - <<'EOF'\nbody\nEOF",
 ]
 
 # None of these may ask: they are the everyday work of the fixer and must flow without cards.
@@ -94,6 +166,10 @@ MUST_NOT_ASK = [
     "git show HEAD:settings_local.py",
     "git grep -n token",
     "git remote -v",
+    "cat kit/scripts/setup-demo.sh",
+    "sed -n 1,20p kit/scripts/reset-demo.sh",
+    "grep -n PROJECT kit/scripts/setup-demo.sh",
+    "git log --oneline -- scripts/setup-demo.sh",
     "git remote get-url origin",
     "git fetch origin",
     "git pull --ff-only",
@@ -115,6 +191,46 @@ MUST_NOT_ASK = [
     "pm status",
     "",
     "   ",
+    # pf target --show only reads
+    "kit/pf target --show",
+    "kit/pf target --show --into project",
+    "kit/pf target --show --into \"my project\"",
+    "python3 -m preflight target --show",
+    "bash -c 'kit/pf target --show'",
+    "grep -rn 'pf target' docs/",
+    "ls kit/pf target-notes.md",
+    # read-only gh
+    "gh pr view 3",
+    "gh pr view 3 --comments",
+    "gh pr view 3 # then merge it",
+    "gh pr list --state open",
+    "gh pr status",
+    "gh pr diff 3",
+    "gh pr checks 3",
+    "gh run watch 123",
+    "gh run list --limit 5",
+    "gh issue list",
+    "gh repo view team/app --json visibility",
+    "gh auth status",
+    "gh --version",
+    "gh help pr",
+    "gh search repos preflight",
+    "gh status",
+    "gh",
+    "gh api repos/o/r/pulls",
+    "gh api repos/o/r/pulls --paginate --jq '.[].number'",
+    "gh api -X GET repos/o/r",
+    "gh api --method=get repos/o/r",
+    "gh api -H 'Accept: application/vnd.github+json' /repos/o/r",
+    "bash -c 'gh pr list'",
+    "sh -c \"gh api repos/o/r/pulls --jq '.[].title'\"",
+    # gh mentioned as text
+    "git commit -m \"docs: then run gh pr create\"",
+    "git commit -m 'next: gh pr create --fill'",
+    "echo 'gh pr merge 1' > notes.txt",
+    "cat > notes.md <<'EOF'\ngh pr create\nkit/pf target sample\nEOF",
+    "cd gh && ls",
+    "mkdir -p gh/x",
 ]
 
 
@@ -133,6 +249,27 @@ class ReasonTests(unittest.TestCase):
         missed = [c for c in MUST_ASK if risky_git.risky_reason(c) is None]
         self.assertEqual(missed, [], "these risky commands would run without asking")
 
+    def test_switching_the_project_under_test_asks(self) -> None:
+        reasons = {c: risky_git.risky_reason(c) for c in MUST_ASK_TARGET}
+        wrong = {c: r for c, r in reasons.items() if r != "switches the project under test (pf target)"}
+        self.assertEqual(wrong, {}, "these would switch the project without asking")
+
+    def test_github_writes_ask(self) -> None:
+        missed = [c for c in MUST_ASK_GH if not (risky_git.risky_reason(c) or "").startswith("acts on GitHub as you (gh ")]
+        self.assertEqual(missed, [], "these would act on GitHub without asking")
+
+    def test_github_reason_names_the_command(self) -> None:
+        cases = {
+            "gh pr merge 1": "gh pr merge",
+            "cd project && gh issue create --title x": "gh issue create",
+            "gh repo delete team/app --yes": "gh repo delete",
+            "gh api -X POST repos/o/r/issues": "gh api POST",
+            "gh api repos/o/r/issues -f title=x": "gh api POST",
+            "gh api --method PATCH repos/o/r": "gh api PATCH",
+        }
+        for command, label in cases.items():
+            self.assertEqual(risky_git.risky_reason(command), f"acts on GitHub as you ({label})", command)
+
     def test_everyday_commands_do_not_ask(self) -> None:
         noisy = {c: risky_git.risky_reason(c) for c in MUST_NOT_ASK if risky_git.risky_reason(c) is not None}
         self.assertEqual(noisy, {}, "these everyday commands would show a card for nothing")
@@ -150,6 +287,19 @@ class DecideTests(unittest.TestCase):
         self.assertEqual(out["hookEventName"], "PreToolUse")
         self.assertEqual(out["permissionDecision"], "ask")
         self.assertIn("A person must approve", out["permissionDecisionReason"])
+
+    def test_new_rules_ask_with_a_plain_reason(self) -> None:
+        for command, reason in (
+            ("kit/pf target https://github.com/team/app", "switches the project under test (pf target)"),
+            ("gh pr merge 1", "acts on GitHub as you (gh pr merge)"),
+        ):
+            answer = risky_git.decide({"tool_name": "Bash", "tool_input": {"command": command}})
+            assert answer is not None, command
+            self.assertEqual(answer["hookSpecificOutput"]["permissionDecision"], "ask")
+            self.assertEqual(
+                answer["hookSpecificOutput"]["permissionDecisionReason"],
+                f"Preflight rule: this {reason}. A person must approve it.",
+            )
 
     def test_other_tools_are_ignored(self) -> None:
         self.assertIsNone(risky_git.decide({"tool_name": "Read", "tool_input": {"file_path": "x"}}))
@@ -171,6 +321,16 @@ class ProcessTests(unittest.TestCase):
     def test_safe_command_prints_nothing(self) -> None:
         done = run_hook({"tool_name": "Bash", "tool_input": {"command": "git status"}})
         self.assertEqual((done.returncode, done.stdout), (0, ""))
+
+    def test_gh_write_and_target_switch_print_ask_but_show_and_view_do_not(self) -> None:
+        for command, asks in (("FOO=1 gh issue create --title x", True), ("kit/pf target sample", True),
+                              ("gh pr view 3", False), ("kit/pf target --show", False)):
+            done = run_hook({"tool_name": "Bash", "tool_input": {"command": command}})
+            self.assertEqual(done.returncode, 0, command)
+            if asks:
+                self.assertEqual(json.loads(done.stdout)["hookSpecificOutput"]["permissionDecision"], "ask", command)
+            else:
+                self.assertEqual(done.stdout, "", command)
 
     def test_garbage_input_never_blocks_work(self) -> None:
         for raw in ("", "not json", "{", "[]", "null"):

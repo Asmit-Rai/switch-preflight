@@ -18,6 +18,15 @@ Risky means:
   * sending work away or pointing it elsewhere: push, remote add/set-url
   * deleting files: rm, rmdir, unlink, shred, trash, git rm, find ... -delete
   * running downloaded code: curl or wget piped into a shell
+  * running scripts/setup-demo.sh or scripts/reset-demo.sh: they replace the project under test and
+    the agents' permission file (reading them with cat, sed or grep is free)
+  * switching the project under test: `pf target ...` or `python3 -m preflight target ...` (only
+    `--show` is free: it changes nothing)
+  * acting on GitHub as the person who signed in: any `gh` command that is not read-only (pr create,
+    merge, comment, review; issue create, close; repo create, fork, delete, edit; release create;
+    workflow run; secret set; api writes ...). Read-only means gh --version, gh help, gh auth status,
+    gh search, gh status, gh <noun> view|list|status|diff|checks|watch, and gh api with no
+    -X/--method other than GET and none of -f, -F, --field, --raw-field, --input
 
 Limits (stated plainly): this is a guard for an agent that is trying to follow the rules, not a
 sandbox. It reads the command text. It cannot see inside a script file the agent wrote, inside
@@ -59,6 +68,13 @@ _RISKY: list[tuple[str, re.Pattern[str]]] = [
     ("deletes files (rm, rmdir, unlink, shred or trash)", re.compile(r"(?:^|[\s;&|(`/'\"])(?:sudo\s+)?(?:rm|rmdir|unlink|shred|trash)(?=\s|$)")),
     ("deletes files (find ... -delete)", re.compile(r"(?:^|[\s;&|(`/'\"])find\b[^;&|]*\s-delete\b")),
     ("runs downloaded code (curl or wget piped into a shell)", re.compile(r"(?:curl|wget)\b[^;&]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh|python3?|node)\b")),
+    # Run as the command itself, by a shell (sh SCRIPT), or sourced; a path in `cat SCRIPT` is only read.
+    ("replaces the project or the agents' permission file (setup-demo.sh or reset-demo.sh)", re.compile(
+        r"(?:(?:^|[;&|(`\n])\s*(?:\w+=\S*\s+)*(?:(?:command|exec|env)\s+(?:\w+=\S*\s+)*)?"
+        r"|(?:^|[\s;&|(`/'\"])(?:ba|z|da|k|c|a)?sh\s+(?:-\S+\s+)*"
+        r"|(?:^|[\s;&|(`])(?:source|\.)\s+)"
+        r"(?:\S*/)?(?:setup|reset)-demo\.sh(?=[\s;&|)`'\"]|$)"
+    )),
 ]
 
 
@@ -68,13 +84,22 @@ def risky_reason(command: str) -> str | None:
         return None
     # A heredoc or quoted argument may mention "git reset" as plain text (a commit message, a README).
     # Strip the bodies of heredocs and quoted strings so only the real command words are matched.
-    candidates = [_strip_text(command)]
+    texts = [_strip_text(command)]
+    raw: list[str] = []
     # `bash -c '...'` and `eval "..."` run a string as shell code, so the quoted text IS the command.
     if _RUNS_A_STRING.search(command):
-        candidates.append(command)
-    for text in candidates:
+        raw.append(command)
+        texts += _inner_commands(command)
+    for text in texts + raw:
         for reason, pattern in _RISKY:
             if pattern.search(text):
+                return reason
+    # The rules with an exception (pf target --show, read-only gh) read stripped text only: in the raw
+    # text a quote can hide where one command ends, as in `bash -c 'kit/pf target x' --show`.
+    for text in texts:
+        for rule in _RULES:
+            reason = rule(text)
+            if reason is not None:
                 return reason
     return None
 
@@ -82,15 +107,15 @@ def risky_reason(command: str) -> str | None:
 _RUNS_A_STRING = re.compile(r"(?:^|[\s;&|(`/'\"])(?:(?:ba|z|da|k|c|a)?sh\b[^;&|\n]*\s-[A-Za-z]*c\b|eval\b)")
 
 
+# Heredoc: <<'EOF' ... EOF  (also <<EOF and <<-EOF).
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n.*?\n\s*\2\s*(?=\n|$)", re.DOTALL)
+_QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+
+
 def _strip_text(command: str) -> str:
     """Remove heredoc bodies and the inside of quoted strings; keep the shell words around them."""
-    # Heredoc: <<'EOF' ... EOF  (also <<EOF and <<-EOF). Keep the `<<EOF` marker, drop the body.
-    command = re.sub(
-        r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n.*?\n\s*\2\s*(?=\n|$)",
-        "<<HEREDOC",
-        command,
-        flags=re.DOTALL,
-    )
+    # Keep the `<<EOF` marker, drop the body.
+    command = _HEREDOC.sub("<<HEREDOC", command)
     # Quoted strings: keep the quotes, drop what is inside. A double-quoted string that holds a
     # command substitution ($( ... ) or backticks) is real shell code, so it stays visible.
     command = re.sub(r"'[^']*'", "''", command)
@@ -102,6 +127,118 @@ def _strip_text(command: str) -> str:
         return '"' + " " * len(inner) + '"'
 
     return re.sub(r'"(?:\\.|[^"\\])*"', blank_double, command)
+
+
+def _inner_commands(command: str) -> list[str]:
+    """The code that `bash -c '...'` or `eval "..."` runs, stripped like a command of its own.
+
+    Quotes come off one level at a time (for a shell in a shell). Each quoted string is fenced with `;`,
+    so the words after it (`bash -c '...' --show`) are not read as part of the command inside it.
+    """
+    found: list[str] = []
+    text = _HEREDOC.sub("<<HEREDOC", command)
+    for _ in range(3):
+        inner = _QUOTED.sub(_unquote, text)
+        if inner == text:
+            break
+        found.append(_strip_text(inner))
+        text = inner
+    return found
+
+
+def _unquote(match: re.Match[str]) -> str:
+    quoted = match.group(0)
+    body = quoted[1:-1] if quoted[0] == "'" else re.sub(r'\\(["\\$`])', r"\1", quoted[1:-1])
+    return f" ; {body} ; "
+
+
+# `kit/pf target` or `python3 -m preflight target`; the words after it are read by _switches_target.
+_PF_TARGET = re.compile(r"(?:(?:^|[\s;&|(`/'\"])pf|(?:^|\s)-[A-Za-z]*m\s*preflight)\s+target(?![^\s;&|)`'\"])")
+# The gh command itself (also /opt/homebrew/bin/gh); its words are read by _acts_on_github.
+_GH = re.compile(r"(?:^|[\s;&|(`/'\"])gh(?![^\s;&|)`])")
+_GH_READ_VERBS = frozenset({"view", "list", "status", "diff", "checks", "watch"})
+_COMMENT = re.compile(r"(?:^|\s)#")
+
+
+def _words_after(text: str, start: int, stops: str) -> str:
+    """The rest of one command: from START up to the first character in STOPS, without a # comment."""
+    end = start
+    while end < len(text) and text[end] not in stops:
+        end += 1
+    return _COMMENT.split(text[start:end], maxsplit=1)[0]
+
+
+def _switches_target(text: str) -> str | None:
+    """`pf target SOURCE` replaces the project under test; `pf target --show` only reads it."""
+    for match in _PF_TARGET.finditer(text):
+        # A quote also ends the words read here: in `bash -c 'kit/pf target x' --show` the --show is bash's.
+        rest = _words_after(text, match.end(), ";&|\n)`'\"")
+        if not re.search(r"(?:^|\s)--show(?=\s|$)", rest):
+            return "switches the project under test (pf target)"
+    return None
+
+
+def _acts_on_github(text: str) -> str | None:
+    """A gh command that is not read-only acts on GitHub as the person who signed in."""
+    for match in _GH.finditer(text):
+        words = [w for w in re.split(r"[\s<>]+", _words_after(text, match.end(), ";&|\n)`")) if w]
+        label = _gh_write(words)
+        if label is not None:
+            return f"acts on GitHub as you ({label})"
+    return None
+
+
+def _gh_write(words: list[str]) -> str | None:
+    """`gh WORDS` named by its first two words when it may change something on GitHub; None when read-only.
+
+    A word we cannot read (a quoted string, a variable) is never one of the read-only words, so it asks.
+    """
+    if not words or words[0] in ("help", "search", "status") or words in (["--version"], ["version"], ["--help"], ["-h"]):
+        return None
+    if words[0] == "api":
+        method = _gh_api_write(words[1:])
+        return None if method is None else f"gh api {method}".rstrip()
+    if len(words) > 1 and not words[0].startswith("-") and words[1] in _GH_READ_VERBS:
+        return None
+    return "gh " + " ".join(words[:2])
+
+
+def _gh_api_write(args: list[str]) -> str | None:
+    """The method of a `gh api` call that may write, else None.
+
+    It writes with -X/--method other than GET, or with -f, -F, --field, --raw-field or --input (which
+    make gh send POST unless a method is given). An unreadable method (quoted) counts as a write.
+    """
+    methods: list[str] = []
+    data = False
+    for i, word in enumerate(args):
+        following = args[i + 1] if i + 1 < len(args) else ""
+        if word.startswith("--"):
+            name, eq, value = word[2:].partition("=")
+            if name in ("field", "raw-field", "input"):
+                data = True
+            elif name == "method":
+                methods.append(value if eq else following)
+        elif word.startswith("-"):
+            for pos, flag in enumerate(word[1:], start=1):  # short flags may be grouped: -iX POST
+                if flag in "fF":
+                    data = True
+                    break
+                if flag == "X":
+                    methods.append(word[pos + 1:].lstrip("=") or following)
+                    break
+                if flag in "Hpqt":  # these take a value: the rest of the word is that value
+                    break
+    methods = [m.strip("'\"").upper() for m in methods]
+    writes = [m for m in methods if m != "GET"]
+    if writes:
+        return writes[0]
+    if data:
+        return methods[0] if methods else "POST"
+    return None
+
+
+_RULES = (_switches_target, _acts_on_github)
 
 
 def decide(payload: object) -> dict | None:
