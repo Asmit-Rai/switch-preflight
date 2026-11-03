@@ -210,6 +210,14 @@ Reused, and made before the start:
 - A secret that was ever pushed is compromised. Purging history does not undo that; revoke the key.
 - We tested Discord and Claude Code on macOS. We did not test Slack, Teams or Mattermost.
 
+## More documents
+
+- [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md): one page, in plain words
+- [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md): the exact messages to type, scene by scene
+- [`docs/SWITCH_FEATURES.md`](docs/SWITCH_FEATURES.md): every Switch feature we use and where
+- [`docs/SPEC.md`](docs/SPEC.md): the plan we wrote at the start
+- [`preflight/README.md`](preflight/README.md): the checker's guide (check types, exit codes, schema)
+
 ## Team and licence
 
 Team AXA: Asmit Rai (team leader) and Aman Gupta. The submission is made by a person, as the rules
