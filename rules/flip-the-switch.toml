@@ -137,9 +137,13 @@ fix_hint = "Move large files out of git (host the video elsewhere) and remove th
 
 [[check]]
 id = "no-todo-markers"
-title = "No TODO, FIXME or lorem ipsum left in tracked files"
+title = "No TODO, FIXME or lorem ipsum left in the README and docs"
 type = "text_absent"
 required = false
+# Only Markdown is scanned: that is where a judge reads placeholder text. Source and test files
+# quote these words on purpose (a test of this very check, a ruleset title), so scanning them
+# only produced false alarms.
+globs = ["*.md"]
 # The brackets keep this very line from matching its own pattern.
 pattern = "T[O]DO|FIXM[E]|(?i:lorem ipsu[m])"
 fix_hint = "Finish or delete each marker, and replace placeholder text with real text."

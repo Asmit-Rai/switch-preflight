@@ -77,8 +77,9 @@ fix_hint = "Run the command in the project root, read the failing test, and fix 
 
 [[check]]
 id = "no-todo-markers"
-title = "No TODO, FIXME or lorem ipsum left in tracked files"
+title = "No TODO, FIXME or lorem ipsum left in the README and docs"
 type = "text_absent"
 required = false
+globs = ["*.md"]
 pattern = "T[O]DO|FIXM[E]|(?i:lorem ipsu[m])"
 fix_hint = "Finish or delete each marker, and replace placeholder text with real text."
