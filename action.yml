@@ -1,0 +1,99 @@
+# Preflight as a GitHub Action: the same deterministic checks the Switch room runs, as a CI gate.
+#
+#   - uses: actions/checkout@v7
+#     with:
+#       fetch-depth: 0              # history checks (secret scan, first commit) need every commit
+#   - uses: Asmit-Rai/switch-preflight@main
+#     with:
+#       rules: rules/approved.toml  # the check list the Captain approved in the room
+#       approved-sha: b691e62a63c2  # optional: fail unless the gate opens for exactly this list
+#
+# The job fails when the verdict is NOT READY. The check table goes into the job summary, so the
+# run page itself is the proof. The model proposes, code decides.
+name: Preflight check
+description: Run the Preflight checks on a repository and fail the job unless the verdict is READY.
+author: Team AXA
+branding:
+  icon: check-circle
+  color: green
+
+inputs:
+  rules:
+    description: Ruleset TOML file, relative to the workspace (for a Switch room, the approved check list).
+    required: true
+  project:
+    description: Folder of the project to check, relative to the workspace.
+    default: "."
+  approved-sha:
+    description: Optional fingerprint (first 8 to 64 hex of the ruleset's sha256, see `pf sha`). When set, the job also runs the gate and fails unless it opens for this fingerprint.
+    default: ""
+  offline:
+    description: Set to "true" to skip every check that needs the network.
+    default: "false"
+
+outputs:
+  verdict:
+    description: READY or NOT READY.
+    value: ${{ steps.run.outputs.verdict }}
+  report:
+    description: Path of the HTML report (outside the project folder, so it never makes the tree dirty).
+    value: ${{ steps.run.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - id: run
+      shell: bash
+      env:
+        PF: ${{ github.action_path }}/pf
+        RULES: ${{ inputs.rules }}
+        PROJECT: ${{ inputs.project }}
+        APPROVED_SHA: ${{ inputs.approved-sha }}
+        OFFLINE: ${{ inputs.offline }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        set -u
+        # Everything Preflight writes goes to the runner's temp folder: a file inside the project
+        # would make the git-clean check fail.
+        out="$RUNNER_TEMP/preflight"
+        mkdir -p "$out"
+        args=(run --project "$PROJECT" --rules "$RULES" --format table --html "$out/report.html")
+        if [ "$OFFLINE" = "true" ]; then args+=(--offline); fi
+
+        set +e
+        python3 "$PF" "${args[@]}" > "$out/table.txt"
+        code=$?
+        set -e
+        cat "$out/table.txt"
+
+        gate=""
+        if [ "$code" -eq 0 ] && [ -n "$APPROVED_SHA" ]; then
+          set +e
+          gate=$(python3 "$PF" verdict --project "$PROJECT" --approved-sha "$APPROVED_SHA")
+          code=$?
+          set -e
+          echo "$gate"
+        fi
+
+        if [ "$code" -eq 0 ]; then verdict="READY"; else verdict="NOT READY"; fi
+        echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+        echo "report=$out/report.html" >> "$GITHUB_OUTPUT"
+
+        {
+          if [ "$verdict" = "READY" ]; then echo "## ✅ Preflight: READY"; else echo "## ❌ Preflight: NOT READY"; fi
+          echo
+          echo "Commit \`${GITHUB_SHA}\`, ruleset \`${RULES}\`."
+          echo
+          echo '```text'
+          cat "$out/table.txt"
+          if [ -n "$gate" ]; then echo "$gate"; fi
+          echo '```'
+          echo
+          echo "_The model proposes, code decides._"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        exit "$code"
