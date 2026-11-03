@@ -1,4 +1,4 @@
-"""Command line: run, verdict, pack, lint, sha, target.
+"""Command line: run, verdict, pack, lint, sha, target, doctor.
 
 Exit codes: 0 ok, 1 not ready / gate closed / lint errors, 2 no verdict could be produced
 (usage error, bad ruleset, or an internal error).
@@ -12,7 +12,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from . import gitutil, target
+from . import doctor, gitutil, target
 from .checks import Context, run_checks
 from .htmlreport import render_html, write_html
 from .model import READY, Ruleset
@@ -203,6 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     sha.set_defaults(func=cmd_sha)
 
     target.add_parser(sub)
+    doctor.add_parser(sub)
     return parser
 
 
