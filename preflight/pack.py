@@ -24,7 +24,8 @@ def read_meta(path: Path) -> dict[str, Any]:
     return {k: str(v) for k, v in project.items() if isinstance(v, (str, int, float))}
 
 
-def _readme(project: Path) -> str:
+def read_readme(project: Path) -> str:
+    """The project's README.md as text, or "" when there is none or it cannot be read."""
     path = find_file(project, "README.md")
     if path is None:
         return ""
@@ -48,6 +49,21 @@ def repo_url(project: Path, meta: dict[str, Any]) -> str:
     return f"https://github.com/{parsed[0]}/{parsed[1]}" if parsed else redact_url(origin)
 
 
+def commit_url(project: Path, commit: str | None) -> str | None:
+    """`https://github.com/<owner>/<repo>/commit/<sha>`, or None when the commit may not be on GitHub yet.
+
+    A link only when origin is a github.com remote and the commit is on a remote-tracking branch.
+    Reads local refs only (no network), so the caller shows "not pushed yet" for None.
+    """
+    if not commit:
+        return None
+    origin = gitutil.origin_url(project)
+    parsed = parse_github_remote(origin) if origin else None
+    if parsed is None or not gitutil.on_remote_branch(project, commit):
+        return None
+    return f"https://github.com/{parsed[0]}/{parsed[1]}/commit/{commit}"
+
+
 def video_url(readme: str, meta: dict[str, Any]) -> str:
     if meta.get("video_url"):
         return meta["video_url"]
@@ -68,16 +84,18 @@ def project_name(project: Path, readme: str, meta: dict[str, Any]) -> str:
 
 def build_pack(project: Path, doc: dict[str, Any], meta: dict[str, Any]) -> str:
     """Markdown for a verified project. `doc` must come from an open gate."""
-    readme = _readme(project)
+    readme = read_readme(project)
     rules = doc["ruleset"]
     summary = doc["summary"]
+    commit = doc["commit"]
+    link = commit_url(project, commit)
     rows = [
         ("Project", project_name(project, readme, meta)),
         *([("Team", meta["team"])] if meta.get("team") else []),
         *([("About", meta["description"])] if meta.get("description") else []),
         ("Repository", repo_url(project, meta)),
         ("Demo video", video_url(readme, meta)),
-        ("Commit", f"`{doc['commit']}`"),
+        ("Commit", f"[`{gitutil.short_sha(commit)}`]({link}) `{commit}`" if link else f"`{commit}`"),
         ("Verified at", doc["created_at"]),
         ("Ruleset", f"{rules['name']} v{rules['version']}" + (f" ({rules['source']})" if rules["source"] else "")),
         ("Verdict", "**READY**"),

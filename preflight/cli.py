@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import gitutil
 from .checks import Context, run_checks
+from .htmlreport import render_html, write_html
 from .model import READY, Ruleset
 from .pack import build_pack, read_meta, write_pack
 from .report import format_chat, format_json, format_table
@@ -78,6 +79,16 @@ def cmd_run(args: argparse.Namespace) -> int:
             write_json(doc, Path(args.json))
     except OSError as exc:
         return _error(f"cannot write the verdict file: {exc}")
+    if args.html:
+        meta_path = project / "preflight.toml"
+        try:
+            meta = read_meta(meta_path) if meta_path.is_file() else {}
+        except (OSError, ValueError):
+            meta = {}  # only the optional facts are lost; `pack` reports a broken file
+        try:
+            write_html(Path(args.html), render_html(doc, project, meta))
+        except OSError as exc:
+            return _error(f"cannot write {args.html}: {exc}")
 
     printers = {"table": format_table, "chat": format_chat, "json": format_json}
     print(printers[args.format](doc))
@@ -116,11 +127,18 @@ def cmd_pack(args: argparse.Namespace) -> int:
         print("PACK REFUSED: the gate is closed, so no pack was written.")
         return 1
     out = Path(args.out)
+    root = project.resolve()
     try:
-        write_pack(out, build_pack(project.resolve(), gate.document, meta))
+        write_pack(out, build_pack(root, gate.document, meta))
     except OSError as exc:
         return _error(f"cannot write {out}: {exc}")
     print(f"PACK WRITTEN: {out}")
+    if args.html:
+        try:
+            write_html(Path(args.html), render_html(gate.document, root, meta, gate.message, args.approved_sha))
+        except OSError as exc:
+            return _error(f"cannot write {args.html}: {exc}")
+        print(f"HTML WRITTEN: {args.html}")
     return 0
 
 
@@ -154,6 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--project", required=True, help="project folder (a git repo)")
     run.add_argument("--rules", required=True, help="ruleset TOML file")
     run.add_argument("--json", metavar="OUT", help="also write the verdict JSON to this file")
+    run.add_argument("--html", metavar="OUT", help="also write a self-contained HTML report of this run to this file")
     run.add_argument("--format", choices=("table", "chat", "json"), default="table")
     run.add_argument("--offline", action="store_true", help="skip every check that needs the network")
     run.add_argument("--only", metavar="ID,ID", help="run only these checks; the others count as SKIP")
@@ -169,6 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
     pack = sub.add_parser("pack", help="write the submission pack (refuses while the gate is closed)")
     pack.add_argument("--project", required=True)
     pack.add_argument("--out", required=True, help="Markdown file to write")
+    pack.add_argument("--html", metavar="OUT", help="also write the HTML report to this file (only while the gate is open)")
     pack.add_argument("--meta", metavar="preflight.toml", help="optional [project] facts (name, team, ...)")
     pack.add_argument("--max-age-min", type=float, default=DEFAULT_MAX_AGE_MIN)
     pack.add_argument("--approved-sha", type=_approved_sha, metavar="HEX", help=APPROVED_SHA_HELP)

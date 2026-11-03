@@ -165,6 +165,16 @@ def origin_url(project: Path | str) -> str | None:
         return None
 
 
+def on_remote_branch(project: Path | str, sha: str) -> bool:
+    """Is the commit on a remote-tracking branch (`git branch -r --contains`)? Local refs only, no network."""
+    if not 7 <= len(sha) <= 64 or any(c not in "0123456789abcdef" for c in sha.lower()):
+        return False  # only a hex sha reaches the command line
+    try:
+        return bool(run(project, "branch", "-r", "--contains", sha).strip())
+    except GitError:
+        return False
+
+
 def commit_times(project: Path | str) -> list[tuple[str, datetime]]:
     """(sha, author date in UTC) for every commit reachable from any ref."""
     out = run(project, "log", "--all", "--format=%H %at")
