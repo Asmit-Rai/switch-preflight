@@ -33,7 +33,7 @@ One Switch room, four agents, one human decision-maker (the Captain):
 4. **Reviewer** (read-only) reviews the fix and can score the project. Its score is advice only.
 5. When the Captain says "ship it", the Inspector asks the gate: `GATE OK` only if the last run is
    READY for this exact commit, with a clean tree, a fresh result, and the approved fingerprint.
-   Then it writes `SUBMISSION.md`.
+   Then it writes `SUBMISSION.md` and a one-page `report.html`, and attaches both in the room.
 
 A sixth agent, **Spare**, waits outside the room. The "fresh agent test": invite it and watch it catch
 up from the room alone.
@@ -105,7 +105,7 @@ sh scripts/setup-demo.sh          # makes ~/preflight-demo: the checker, the saf
 
 Then in Switch Console: **Templates, Import template**, paste
 `templates/preflight.template.yaml`, **Use**, keep the defaults, **Create all**. Open `#preflight` in
-Discord; the Inspector says hello and runs the checker.
+Discord; the Inspector says hello and runs `kit/pf doctor`, which says whether this machine is ready.
 
 Then follow [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md). The first message is:
 
@@ -117,6 +117,18 @@ What `setup-demo.sh` installs, and why a person (not an agent) does it:
 - `.claude/settings.json`: Claude Code's auto mode refuses to run freshly downloaded code, so this
   allows exactly one command (`kit/pf`) and registers the safety hook below. Agents never edit it.
 - `project/`: a sample submission with 6 planted defects (`scripts/reset-demo.sh` makes a fresh one).
+
+### Check your own project
+
+```sh
+kit/pf target https://github.com/owner/repo   # or a local folder, or `sample`; --show says what is loaded
+kit/pf doctor                                 # is this machine ready? one-line fix for each problem
+kit/pf run --project project --rules rules/approved.toml --html report.html   # a one-page report
+```
+
+In the room, ask `@fixer switch the project to <link>` (the Captain gets a permission card first).
+The same checks also run as a GitHub Action, so they can block a bad merge: see
+[`docs/FAQ.md`](docs/FAQ.md), question 6.
 
 ### Try the checker alone (no Switch needed)
 
@@ -200,8 +212,8 @@ Reused, and made before the start:
 ## Limits
 
 - The Inspector retypes the checker's output into chat, and a model can mistype. The gate (`verdict`)
-  is code, so a typo cannot make a project ready, but a person should compare a table with the
-  checker's own output when it matters.
+  is code, so a typo cannot make a project ready. For the record, use the files the checker writes
+  itself (`report.html`, `SUBMISSION.md`), which the Inspector attaches to the room.
 - Switch Console 0.40 stores agent instructions exactly as written, so curly-brace placeholders are
   not filled in for agents (they are for room instructions). The template is written around that.
 - A template cannot give agents edit rights on documents it seeds, so agents create the documents
@@ -213,6 +225,7 @@ Reused, and made before the start:
 ## More documents
 
 - [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md): one page, in plain words
+- [`docs/FAQ.md`](docs/FAQ.md): which repo, how agents talk, proof, connectors, tools, DevOps
 - [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md): the exact messages to type, scene by scene
 - [`docs/SWITCH_FEATURES.md`](docs/SWITCH_FEATURES.md): every Switch feature we use and where
 - [`docs/SPEC.md`](docs/SPEC.md): the plan we wrote at the start

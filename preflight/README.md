@@ -26,6 +26,13 @@ python3 -m preflight lint --rules rules/flip-the-switch.toml
 # 5. the ruleset's fingerprint: 12 hex characters, for the Captain to approve (see "Fingerprint" below)
 python3 -m preflight sha --rules rules/flip-the-switch.toml
 
+# 6. choose the project under test: a GitHub URL, a local repo, or the demo sample (see "Target" below)
+python3 -m preflight target https://github.com/owner/repo [--into project] [--branch NAME]
+python3 -m preflight target --show
+
+# 7. is this machine and the agents' shared folder ready? (see "Doctor" below)
+python3 -m preflight doctor [--folder DIR] [--switch-url URL] [--format table|chat]
+
 # tests (offline, deterministic)
 python3 -m unittest discover -s tests -v
 ```
@@ -33,7 +40,34 @@ python3 -m unittest discover -s tests -v
 `run` options: `--json OUT` (also write the verdict JSON there), `--format table|chat|json`
 (default `table`), `--offline` (every check that needs the network becomes SKIP), `--only ID,ID`
 (run just these; **the other checks are recorded as SKIP, so a partial run can never be READY**),
-`--no-write` (do not write `.preflight/verdict.json`).
+`--no-write` (do not write `.preflight/verdict.json`), `--html OUT` (also write a one-page HTML report of
+this run). `pack` also takes `--html OUT`: the report next to the Markdown pack, only while the gate is open.
+
+The HTML report is one self-contained file (inline CSS, no JavaScript, nothing loaded from the network). It
+shows READY or NOT READY in words and colour, the commit (a GitHub link only when the commit is on a
+remote-tracking branch, else "not pushed yet"), the ruleset fingerprint and every check with its detail and
+fix hint. Its summary and verdict lines are the same as in `table` and `chat`, so a person can compare them.
+
+### Target
+
+`target SOURCE` loads the project to check into `project/` (or `--into DIR`). SOURCE is an https or ssh git
+URL, a local git repository (cloned, so the original folder is never changed; its `origin` is copied), or
+`sample` (the demo sample with 6 planted defects). It clones into a temporary folder first, moves the old
+project to `.old-projects/` (never deletes it) and records what it loaded in `.preflight/target.json`.
+It refuses other URL schemes, credentials inside a URL, and text that starts with `-` or holds spaces or
+control characters, and it never waits for a password (`GIT_TERMINAL_PROMPT=0`, no terminal). `target --show`
+prints what is loaded and whether HEAD moved since. The approval hook (`hooks/risky_git.py`) makes `target`
+ask a person, except `--show`.
+
+### Doctor
+
+`doctor` checks, in plain words, what a room needs before a run: Python 3.11+, git, the Claude Code CLI,
+the GitHub CLI login (only its exit code is read), the shared folder layout (`kit/`, `rules/`, `project/`),
+local changes in `kit/`, the permission file `.claude/settings.json` (allows `kit/pf`, registers the hook),
+that the hook really asks for a risky command and stays silent for a safe one, the approved check list and
+its fingerprint, and, with `--switch-url` (or `SWITCH_API_URL`), the Switch server's `/health`. Each line is
+PASS, FAIL, WARN or SKIP with a one-line fix; the last line is `DOCTOR: OK` or a count of problems. Exit 0
+without a FAIL, else 1.
 
 Formats: `table` is the full report, every line at most 100 columns wide except the final verdict line.
 `chat` fits one Discord message (at most 1800 characters; blocking checks first, then optional ones, then one
