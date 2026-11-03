@@ -1,0 +1,160 @@
+"""Command line: run, verdict, pack, lint.
+
+Exit codes: 0 ok, 1 not ready / gate closed / lint errors, 2 no verdict could be produced
+(usage error, bad ruleset, or an internal error).
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+
+from . import gitutil
+from .checks import Context, run_checks
+from .model import READY
+from .pack import build_pack, read_meta, write_pack
+from .report import format_chat, format_json, format_table
+from .ruleset import RulesetError, load_ruleset, parse_ruleset
+from .timeutil import now_iso
+from .verdict import DEFAULT_MAX_AGE_MIN, build_document, check_gate, verdict_path, write_json
+
+
+def _error(message: str) -> int:
+    print(f"preflight: error: {message}", file=sys.stderr)
+    return 2
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    project = Path(args.project)
+    if not project.is_dir():
+        return _error(f"project folder not found: {project}")
+    project = project.resolve()
+    try:
+        ruleset = load_ruleset(args.rules)
+    except RulesetError as exc:
+        for problem in exc.problems:
+            print(problem, file=sys.stderr)
+        return _error(f"{args.rules} is not a valid ruleset (run `preflight lint --rules {args.rules}`)")
+
+    only = None
+    if args.only:
+        only = {part.strip() for part in args.only.split(",") if part.strip()}
+        unknown = sorted(only - {c.id for c in ruleset.checks})
+        if unknown:
+            return _error(f"--only names unknown check id(s): {', '.join(unknown)}")
+
+    results = run_checks(ruleset, Context(project, offline=args.offline), only)
+    # Commit and dirtiness are read after the checks: a check (like the tests) may touch the tree.
+    commit = gitutil.head_sha(project)
+    try:
+        dirty = bool(gitutil.dirty_entries(project))
+    except gitutil.GitError:
+        dirty = False
+    doc = build_document(ruleset, project, commit, dirty, results, now_iso())
+
+    try:
+        if not args.no_write:
+            write_json(doc, verdict_path(project))
+        if args.json:
+            write_json(doc, Path(args.json))
+    except OSError as exc:
+        return _error(f"cannot write the verdict file: {exc}")
+
+    printers = {"table": format_table, "chat": format_chat, "json": format_json}
+    print(printers[args.format](doc))
+    if doc["verdict"] == READY and dirty:
+        print("NOTE: the working tree has uncommitted changes, so `preflight verdict` stays closed until they are committed.", file=sys.stderr)
+    return 0 if doc["verdict"] == READY else 1
+
+
+def cmd_verdict(args: argparse.Namespace) -> int:
+    gate = check_gate(args.project, args.max_age_min)
+    print(gate.message)
+    return 0 if gate.ok else 1
+
+
+def cmd_pack(args: argparse.Namespace) -> int:
+    project = Path(args.project)
+    meta: dict = {}
+    meta_path = Path(args.meta) if args.meta else project / "preflight.toml"
+    if args.meta and not meta_path.is_file():
+        return _error(f"--meta file not found: {meta_path}")
+    if meta_path.is_file():
+        try:
+            meta = read_meta(meta_path)
+        except (OSError, ValueError) as exc:
+            return _error(f"cannot read {meta_path}: {exc}")
+
+    gate = check_gate(project, args.max_age_min)
+    print(gate.message)
+    if not gate.ok or gate.document is None:
+        print("PACK REFUSED: the gate is closed, so no pack was written.")
+        return 1
+    out = Path(args.out)
+    try:
+        write_pack(out, build_pack(project.resolve(), gate.document, meta))
+    except OSError as exc:
+        return _error(f"cannot write {out}: {exc}")
+    print(f"PACK WRITTEN: {out}")
+    return 0
+
+
+def cmd_lint(args: argparse.Namespace) -> int:
+    ruleset, problems = parse_ruleset(args.rules)
+    for problem in problems:
+        print(problem)
+    errors = sum(1 for p in problems if p.level == "ERROR")
+    if not problems and ruleset is not None:
+        print(f"OK: {ruleset.name} v{ruleset.version}, {len(ruleset.checks)} checks, no problems")
+    return 1 if errors else 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python3 -m preflight",
+        description="Deterministic pre-submission checks. The model proposes, code decides.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    run = sub.add_parser("run", help="run every check in a ruleset against a project")
+    run.add_argument("--project", required=True, help="project folder (a git repo)")
+    run.add_argument("--rules", required=True, help="ruleset TOML file")
+    run.add_argument("--json", metavar="OUT", help="also write the verdict JSON to this file")
+    run.add_argument("--format", choices=("table", "chat", "json"), default="table")
+    run.add_argument("--offline", action="store_true", help="skip every check that needs the network")
+    run.add_argument("--only", metavar="ID,ID", help="run only these checks; the others count as SKIP")
+    run.add_argument("--no-write", action="store_true", help="do not write .preflight/verdict.json")
+    run.set_defaults(func=cmd_run)
+
+    verdict = sub.add_parser("verdict", help="the gate: is the last run READY for this exact commit?")
+    verdict.add_argument("--project", required=True)
+    verdict.add_argument("--max-age-min", type=float, default=DEFAULT_MAX_AGE_MIN)
+    verdict.set_defaults(func=cmd_verdict)
+
+    pack = sub.add_parser("pack", help="write the submission pack (refuses while the gate is closed)")
+    pack.add_argument("--project", required=True)
+    pack.add_argument("--out", required=True, help="Markdown file to write")
+    pack.add_argument("--meta", metavar="preflight.toml", help="optional [project] facts (name, team, ...)")
+    pack.add_argument("--max-age-min", type=float, default=DEFAULT_MAX_AGE_MIN)
+    pack.set_defaults(func=cmd_pack)
+
+    lint = sub.add_parser("lint", help="validate a ruleset")
+    lint.add_argument("--rules", required=True)
+    lint.set_defaults(func=cmd_lint)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        return int(args.func(args))
+    except KeyboardInterrupt:
+        return 130
+    except Exception as exc:  # noqa: BLE001 - a crash must exit 2, never pass for a verdict
+        if os.environ.get("PREFLIGHT_DEBUG"):
+            raise
+        print(f"preflight: internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2

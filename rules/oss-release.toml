@@ -1,0 +1,84 @@
+# Open-source release checklist (ruleset v1).
+#
+# A second, unrelated ruleset for the same engine: it checks that a project is fit to tag and publish.
+# Run it with: python3 -m preflight run --project DIR --rules rules/oss-release.toml
+# Edit `cmd` in `tests-pass` to match the project (npm test, pytest, cargo test, make test, ...).
+
+[meta]
+name = "Open-source release checklist"
+version = 1
+source = "https://opensource.guide/"
+
+[[check]]
+id = "license"
+title = "The repo has a LICENSE file"
+type = "file_exists"
+required = true
+paths = ["LICENSE", "LICENSE.md", "LICENSE.txt"]
+fix_hint = "Add a LICENSE file with an OSI-approved licence and commit it."
+
+[[check]]
+id = "readme-headings"
+title = "README explains Install, Usage and Contributing"
+type = "readme_headings"
+required = true
+file = "README.md"
+headings = ["Install", "Usage", "Contributing"]
+min_chars = 20
+fix_hint = "Add the missing README sections, each with real instructions."
+
+[[check]]
+id = "changelog"
+title = "There is a CHANGELOG"
+type = "file_exists"
+required = true
+paths = ["CHANGELOG.md", "CHANGELOG", "CHANGES.md"]
+fix_hint = "Add CHANGELOG.md with an entry for this release (Keep a Changelog format works well)."
+
+[[check]]
+id = "secret-scan"
+title = "No secrets in the files or in git history"
+type = "secret_scan"
+required = true
+history = true
+fix_hint = "Remove and rotate the secret, then purge it from history. List accepted false positives in .preflight-allow."
+
+[[check]]
+id = "no-env-file"
+title = "No .env, .pem or .key file is tracked"
+type = "file_absent"
+required = true
+paths = [".env", "*.pem", "*.key"]
+fix_hint = "Run `git rm --cached <file>`, add it to .gitignore, and rotate anything it contained."
+
+[[check]]
+id = "git-clean"
+title = "Everything is committed"
+type = "git_clean"
+required = true
+fix_hint = "Commit the changes, or add generated files to .gitignore."
+
+[[check]]
+id = "links-ok"
+title = "Every link in the README works"
+type = "links_ok"
+required = true
+file = "README.md"
+fix_hint = "Fix or remove each dead link and replace placeholder hosts with real URLs."
+
+[[check]]
+id = "tests-pass"
+title = "The test suite passes"
+type = "command"
+required = true
+cmd = "python3 -m unittest discover -s tests"
+timeout = 300
+fix_hint = "Run the command in the project root, read the failing test, and fix the code. Do not weaken tests."
+
+[[check]]
+id = "no-todo-markers"
+title = "No TODO, FIXME or lorem ipsum left in tracked files"
+type = "text_absent"
+required = false
+pattern = "T[O]DO|FIXM[E]|(?i:lorem ipsu[m])"
+fix_hint = "Finish or delete each marker, and replace placeholder text with real text."

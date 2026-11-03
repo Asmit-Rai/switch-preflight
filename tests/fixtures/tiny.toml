@@ -1,0 +1,19 @@
+# Two offline checks. A repo with a README and a clean tree is READY under this ruleset.
+
+[meta]
+name = "Tiny fixture"
+version = 3
+source = "https://example.org/tiny"
+
+[[check]]
+id = "readme"
+title = "README exists"
+type = "file_exists"
+paths = ["README.md"]
+fix_hint = "add a README"
+
+[[check]]
+id = "clean"
+title = "Clean tree"
+type = "git_clean"
+fix_hint = "commit"

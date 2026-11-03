@@ -1,0 +1,145 @@
+# Flip the Switch hackathon: submission checks (ruleset v1).
+#
+# Source of truth: https://www.wemakedevs.org/hackathons/switch/rules
+# A person (the Captain) approves this file. `python3 -m preflight lint --rules rules/flip-the-switch.toml`
+# must pass before it is used. The only `command` check is `tests-pass`; it runs code, so read it.
+
+[meta]
+name = "Flip the Switch Hackathon"
+version = 1
+source = "https://www.wemakedevs.org/hackathons/switch/rules"
+# Public judging rubric. Advisory: the reviewer agent scores against it, code never does.
+rubric = [
+  ["Use of Switch", 30],
+  ["Technical execution", 25],
+  ["Creativity and impact", 25],
+  ["Presentation and docs", 20],
+]
+
+# ---------------------------------------------------------------- required
+
+[[check]]
+id = "repo-public"
+title = "The GitHub repository is public"
+type = "git_remote_public"
+required = true
+fix_hint = "Push the repo to GitHub as `origin` and set it to public (Settings > General > Danger Zone > Change visibility). Ask the Captain first."
+
+[[check]]
+id = "first-commit-after-start"
+title = "Every commit is after the hackathon started (00:01 IST, 4 Nov 2026)"
+type = "git_first_commit_after"
+required = true
+after = "2026-11-03T18:31:00Z"
+fix_hint = "Never fake or rewrite commit dates. If older commits exist, tell the Captain: the usual fix is a fresh repo that contains only work done after the start."
+
+[[check]]
+id = "license"
+title = "The repo has a LICENSE file"
+type = "file_exists"
+required = true
+paths = ["LICENSE", "LICENSE.md", "LICENSE.txt"]
+fix_hint = "Add a LICENSE file with an OSI-approved licence (MIT is fine) and commit it."
+
+[[check]]
+id = "readme-headings"
+title = "README has the sections the rules ask for"
+type = "readme_headings"
+required = true
+file = "README.md"
+# Each entry is a case-insensitive substring of a heading; "a|b" accepts either wording.
+headings = [
+  "Problem",
+  "What it does",
+  "Why Switch",
+  "Agents",
+  "How the channel is set up|channel",
+  "Run it",
+  "Reused",
+]
+min_chars = 40
+fix_hint = "Add each missing heading as a README section with real text (at least 40 characters): the problem, what it does, why Switch, which agents we connected, how the channel is set up, how to run it, and what was reused versus built during the hackathon."
+
+[[check]]
+id = "secret-scan"
+title = "No secrets in the files or in git history"
+type = "secret_scan"
+required = true
+history = true
+fix_hint = "Remove the secret, rotate it at its provider (it is burned once pushed), and purge it from history with the Captain's approval. List accepted false positives in .preflight-allow."
+
+[[check]]
+id = "no-env-file"
+title = "No .env, .pem or .key file is tracked"
+type = "file_absent"
+required = true
+paths = [".env", "*.pem", "*.key"]
+fix_hint = "Run `git rm --cached <file>`, add it to .gitignore, and rotate anything it contained. Keep a `.env.example` with empty values instead."
+
+[[check]]
+id = "links-ok"
+title = "Every link in the README works"
+type = "links_ok"
+required = true
+file = "README.md"
+max_links = 40
+fix_hint = "Fix or remove each dead link. Replace placeholder hosts (localhost, example.com, .invalid) with the real URL."
+
+[[check]]
+id = "video-link-present"
+title = "The README links the demo video"
+type = "video_link_present"
+required = true
+file = "README.md"
+fix_hint = "Upload the demo video (YouTube, Vimeo or Loom) and put its link near the top of the README."
+
+[[check]]
+id = "git-clean"
+title = "Everything is committed"
+type = "git_clean"
+required = true
+fix_hint = "Commit the changes, or add generated files to .gitignore. The verdict is only valid for a clean tree."
+
+[[check]]
+id = "template-present"
+title = "The Switch group template is in the repo"
+type = "file_exists"
+required = true
+paths = ["templates/*.yaml"]
+fix_hint = "Export the Switch group template (agents, room, roles, documents, kickoff) to templates/ as a .yaml file and commit it."
+
+[[check]]
+id = "tests-pass"
+title = "The test suite passes"
+type = "command"
+required = true
+cmd = "python3 -m unittest discover -s tests"
+timeout = 300
+fix_hint = "Run the command in the project root, read the failing test, and fix the code. Do not delete or weaken tests to make them pass."
+
+# ---------------------------------------------------------------- advisory (WARN, never blocks)
+
+[[check]]
+id = "video-max-180s"
+title = "The demo video is at most 3 minutes"
+type = "video_max_seconds"
+required = false
+max_seconds = 180
+fix_hint = "Cut the video to 3:00 or less. If the duration could not be read, check it by hand."
+
+[[check]]
+id = "max-file-25mb"
+title = "No tracked file is larger than 25 MB"
+type = "max_file_mb"
+required = false
+limit_mb = 25
+fix_hint = "Move large files out of git (host the video elsewhere) and remove them from the repo."
+
+[[check]]
+id = "no-todo-markers"
+title = "No TODO, FIXME or lorem ipsum left in tracked files"
+type = "text_absent"
+required = false
+# The brackets keep this very line from matching its own pattern.
+pattern = "T[O]DO|FIXM[E]|(?i:lorem ipsu[m])"
+fix_hint = "Finish or delete each marker, and replace placeholder text with real text."

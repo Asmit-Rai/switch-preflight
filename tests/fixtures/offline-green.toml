@@ -1,0 +1,71 @@
+# A tiny ruleset with no network checks, used by the CLI, gate and pack tests.
+# It mirrors the contest ruleset's offline checks on the sample project.
+
+[meta]
+name = "Offline fixture"
+version = 1
+source = "https://example.org/offline-fixture"
+
+[[check]]
+id = "license"
+title = "LICENSE exists"
+type = "file_exists"
+paths = ["LICENSE"]
+fix_hint = "add a LICENSE"
+
+[[check]]
+id = "readme-headings"
+title = "README sections"
+type = "readme_headings"
+headings = ["Problem", "What it does", "Why Switch", "Agents", "How the channel is set up|channel", "Run it", "Reused"]
+min_chars = 40
+fix_hint = "add the missing sections"
+
+[[check]]
+id = "secret-scan"
+title = "No secrets"
+type = "secret_scan"
+history = true
+fix_hint = "remove and rotate"
+
+[[check]]
+id = "no-env-file"
+title = "No .env tracked"
+type = "file_absent"
+paths = [".env", "*.pem", "*.key"]
+fix_hint = "git rm --cached"
+
+[[check]]
+id = "first-commit-after-start"
+title = "Started after the start"
+type = "git_first_commit_after"
+after = "2026-11-03T18:31:00Z"
+fix_hint = "ask the Captain"
+
+[[check]]
+id = "git-clean"
+title = "Clean tree"
+type = "git_clean"
+fix_hint = "commit"
+
+[[check]]
+id = "template-present"
+title = "Template present"
+type = "file_exists"
+paths = ["templates/*.yaml"]
+fix_hint = "add a template"
+
+[[check]]
+id = "tests-pass"
+title = "Tests pass"
+type = "command"
+cmd = "python3 -m unittest discover -s tests"
+fix_hint = "fix the tests"
+
+[[check]]
+id = "max-file-25mb"
+title = "No huge files"
+type = "max_file_mb"
+required = false
+limit_mb = 25
+fix_hint = "remove big files"
