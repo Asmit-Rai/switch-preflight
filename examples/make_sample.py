@@ -8,6 +8,11 @@ DEST must not exist or must be empty. The result is a fresh repo with fixed auth
 dates, so two runs produce identical commits (only the folder path differs). Nothing is pushed:
 `origin` points at a made-up GitHub URL.
 
+Every defect has a natural fix that an agent can make on a branch: write the missing sections, add
+the LICENSE, replace the dead link, fix the code (not the test) so the test passes, add the video
+link. The token is the one risky step, so it needs the Captain: it sits only in the last commit, so
+it is purged with `git reset --soft HEAD~1`, deleting the line and committing again.
+
 Check it with the sample ruleset, which is the contest ruleset with `repo-public` made advisory
 (the made-up origin can never be public):
 
@@ -28,17 +33,19 @@ from pathlib import Path
 ORIGIN = "https://github.com/example-team/sample-submission.git"
 AUTHOR = "Sample Team"
 EMAIL = "sample@example.com"
-BEFORE_START = "2026-11-02T10:00:00+05:30"  # the contest starts 2026-11-04T00:01:00+05:30
-AFTER_START = ("2026-11-04T10:00:00+05:30", "2026-11-04T11:00:00+05:30", "2026-11-04T11:30:00+05:30")
+# The contest starts 2026-11-04T00:01:00+05:30; all three commits are after it, so no history rewrite is
+# needed for the dates.
+AFTER_START = ("2026-11-04T00:30:00+05:30", "2026-11-04T00:40:00+05:30", "2026-11-04T00:50:00+05:30")
+VIDEO = "https://www.youtube.com/watch?v=mA4_v5fQDYE"
 
 # The 6 planted defects: (number, what is wrong, ids of the flip-the-switch checks it turns red).
-# The committed .env turns two checks red: the file itself and the token inside it.
+# Each one turns exactly one check red.
 DEFECTS = (
-    (1, "README lacks the 'Agents we connected' and 'Reused' headings", ("readme-headings",)),
+    (1, "README lacks the 'Agents we connected' and 'Reused vs built' sections", ("readme-headings",)),
     (2, "there is no LICENSE file", ("license",)),
-    (3, "a .env with a (fake) token is committed", ("no-env-file", "secret-scan")),
-    (4, "the first commit is back-dated to 2026-11-02, before the start", ("first-commit-after-start",)),
-    (5, "the README links a dead placeholder URL", ("links-ok",)),
+    (3, "the README links a dead placeholder URL (docs.example.invalid)", ("links-ok",)),
+    (4, "settings_local.py commits a (fake) GitHub token, in the last commit", ("secret-scan",)),
+    (5, "roll_call() joins the names with a space, not ', ', so a test fails", ("tests-pass",)),
     (6, "the README has no demo-video link", ("video-link-present",)),
 )
 
@@ -50,28 +57,31 @@ def fake_github_token() -> str:
     return "gh" + "p" + "_" + body
 
 
-APP = '''"""Roll Call: print a numbered list of the names given on the command line."""
+APP = '''"""Roll Call: print who is in the room as one comma-separated line."""
 
 import sys
 
 
 def roll_call(names: list[str]) -> str:
-    """Return the names as a numbered list, one per line."""
-    return "\\n".join(f"{i}. {name}" for i, name in enumerate(names, start=1))
+    """Return the names on one line, separated by a comma and a space: Ada, Grace, Linus."""
+    return {joiner}.join(names)
 
 
 if __name__ == "__main__":
     print(roll_call(sys.argv[1:]))
 '''
 
-TEST_OK = '''import unittest
+TEST_ROLL_CALL = '''import unittest
 
 from app import roll_call
 
 
 class RollCallTest(unittest.TestCase):
-    def test_numbers_the_names(self):
-        self.assertEqual(roll_call(["Ada", "Grace"]), "1. Ada\\n2. Grace")
+    def test_names_are_separated_by_a_comma_and_a_space(self):
+        self.assertEqual(roll_call(["Ada", "Grace", "Linus"]), "Ada, Grace, Linus")
+
+    def test_one_name(self):
+        self.assertEqual(roll_call(["Ada"]), "Ada")
 
     def test_empty_list(self):
         self.assertEqual(roll_call([]), "")
@@ -91,15 +101,7 @@ agents:
   - name: inspector
 """
 
-GITIGNORE_BROKEN = """.preflight/
-__pycache__/
-*.pyc
-"""
-
-GITIGNORE_FIXED = """.env
-.env.*
-!.env.example
-.preflight/
+GITIGNORE = """.preflight/
 __pycache__/
 *.pyc
 """
@@ -128,8 +130,34 @@ SOFTWARE.
 """
 
 
+def app_py(fixed: bool) -> str:
+    """The app. The broken one joins the names with a space instead of ", " (defect 5)."""
+    return APP.format(joiner='", "' if fixed else '" "')
+
+
+def settings_py(fixed: bool) -> str:
+    """settings_local.py. The broken one holds a (fake) token (defect 4); the fixed one reads it from the environment."""
+    if fixed:
+        return (
+            '"""Local settings for Roll Call. The token is read from the environment, never stored here."""\n'
+            "\n"
+            "from os import environ\n"
+            "\n"
+            'ROOM = "roll-call"\n'
+            'CHANNEL = "#roll-call"\n'
+            'GITHUB_TOKEN = environ.get("GITHUB_TOKEN", "")\n'
+        )
+    return (
+        '"""Local settings for Roll Call on this laptop."""\n'
+        "\n"
+        'ROOM = "roll-call"\n'
+        'CHANNEL = "#roll-call"\n'
+        f'GITHUB_TOKEN = "{fake_github_token()}"\n'
+    )
+
+
 def readme(fixed: bool) -> str:
-    """The sample README. The broken one omits two headings, links a dead URL and has no video."""
+    """The sample README. The broken one omits two sections (defect 1), links a dead URL (3) and has no video (6)."""
     lines = [
         "# Roll Call",
         "",
@@ -137,10 +165,7 @@ def readme(fixed: bool) -> str:
         "",
     ]
     if fixed:
-        lines += [
-            "Demo video: [Roll Call in 19 seconds](https://www.youtube.com/watch?v=jNQXAC9IVRw) (a placeholder video).",
-            "",
-        ]
+        lines += [f"Demo video: [Roll Call in action]({VIDEO})", ""]
     lines += [
         "## The problem",
         "",
@@ -148,7 +173,7 @@ def readme(fixed: bool) -> str:
         "",
         "## What it does",
         "",
-        "`app.py` takes names on the command line and prints a numbered roll call, one name per line.",
+        "`app.py` takes names on the command line and prints them as one comma-separated line.",
         "",
         "## Why Switch is central",
         "",
@@ -175,6 +200,8 @@ def readme(fixed: bool) -> str:
         "```",
         "python3 app.py Ada Grace Linus",
         "```",
+        "",
+        "It prints `Ada, Grace, Linus`.",
         "",
     ]
     if fixed:
@@ -230,22 +257,20 @@ def create_sample(dest: Path, fixed: bool = False) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     _git(dest, "init", "-q")
     _git(dest, "symbolic-ref", "HEAD", "refs/heads/main")
+    first, second, third = AFTER_START
 
-    if fixed:
-        first, second = AFTER_START[0], AFTER_START[1]
-        _write(dest, {"app.py": APP, ".gitignore": GITIGNORE_FIXED, "LICENSE": LICENSE})
-        _commit(dest, "Start the roll call script", first)
-    else:
-        second = AFTER_START[1]
-        _write(dest, {"app.py": APP, ".gitignore": GITIGNORE_BROKEN})
-        _commit(dest, "Start the roll call script", BEFORE_START)  # defect 4: before the contest began
+    files = {"app.py": app_py(fixed), ".gitignore": GITIGNORE}
+    if fixed:  # defect 2 is the missing LICENSE
+        files["LICENSE"] = LICENSE
+    _write(dest, files)
+    _commit(dest, "Start the roll call script", first)
 
-    _write(dest, {"README.md": readme(fixed), "tests/test_ok.py": TEST_OK, "templates/room.yaml": ROOM_YAML})
+    _write(dest, {"README.md": readme(fixed), "tests/test_roll_call.py": TEST_ROLL_CALL, "templates/room.yaml": ROOM_YAML})
     _commit(dest, "Add README, tests and the room template", second)
 
-    if not fixed:  # defect 3: a .env with a token, committed
-        _write(dest, {".env": f"# Local settings, committed by mistake\nGITHUB_TOKEN={fake_github_token()}\n"})
-        _commit(dest, "Add local settings", AFTER_START[2])
+    # Defect 4: the token is only in this last commit, so `git reset --soft HEAD~1` purges it.
+    _write(dest, {"settings_local.py": settings_py(fixed)})
+    _commit(dest, "Add local settings", third)
 
     _git(dest, "remote", "add", "origin", ORIGIN)
 

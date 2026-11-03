@@ -232,9 +232,23 @@ tests/      unittest, offline; fixtures/ holds small rulesets
 
 ### The sample project
 
-`python3 examples/make_sample.py DEST` creates a repo with 6 planted defects: the README lacks the "Agents" and
-"Reused" headings, no LICENSE, a committed `.env` with a fake token (built at runtime), a first commit dated
-before the start, a dead `.invalid` link, no demo-video link. The `.env` trips two checks, so 7 required checks
-are red. `--fixed` creates the all-green twin. Both have fixed author, dates and message, so they are
-byte-for-byte reproducible. Their `origin` is a made-up GitHub URL that is never pushed, so use
-`examples/sample.rules.toml` (the contest ruleset with `repo-public` made advisory) to reach READY.
+`python3 examples/make_sample.py DEST` creates a repo with 6 planted defects. Each turns exactly one required
+check red, and each has a natural fix an agent can make on a branch:
+
+1. `readme-headings`: the README lacks the "Agents we connected" and "Reused vs built" sections. Fix: write them.
+2. `license`: there is no LICENSE file. Fix: add one.
+3. `links-ok`: the README links a dead placeholder URL, `https://docs.example.invalid/setup` (flagged even
+   offline). Fix: replace or remove the link.
+4. `secret-scan`: `settings_local.py` holds a fake GitHub token (built at runtime), added only in the last commit,
+   "Add local settings". Fix: purge it with `git reset --soft HEAD~1`, delete the line, commit again. That rewrites
+   history, so the Captain approves it first.
+5. `tests-pass`: `roll_call()` in `app.py` joins the names with a space instead of `", "`, so a unit test fails.
+   Fix: one line in `app.py`. Weakening the test is the wrong fix.
+6. `video-link-present`: the README has no YouTube, Vimeo or Loom link. Fix: add one.
+
+All three commits are dated after the start, so `first-commit-after-start` passes, and every other check passes
+offline except the ones that need the network (`repo-public`, `video-max-180s`). `--fixed` creates the all-green
+twin: a LICENSE, all sections, no dead link, a video link, passing tests, and a `settings_local.py` that reads its
+token from the environment. Both have fixed author, dates and messages, so they are byte-for-byte reproducible.
+Their `origin` is a made-up GitHub URL that is never pushed, so use `examples/sample.rules.toml` (the contest
+ruleset with `repo-public` made advisory) to reach READY.
