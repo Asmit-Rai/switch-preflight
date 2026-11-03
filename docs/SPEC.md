@@ -34,9 +34,10 @@ that will not let that happen.
 ## The flow (this is the demo)
 
 1. Captain: "@scout here are the rules." Scout posts a draft check list. Captain approves it.
-2. Captain: "@inspector run preflight." Five red checks. Inspector says **not ready**.
-3. Captain: "@fixer fix 1 to 3." Fixer asks permission in chat. Captain approves one request and
-   **declines one**. Fixer adapts.
+2. Captain: "@inspector run preflight." Six red checks. Inspector says **not ready**.
+3. Captain: "@fixer fix the red checks you can." The fixer asks permission in chat before a risky
+   git step (a Switch permission card). Captain **declines** the first request, then approves
+   a safer one. Fixer adapts.
 4. Fixer opens a PR. Reviewer finds one issue. Fixer amends. Inspector runs again: green.
 5. Reviewer posts the advisory score (for example 61 to 88), with evidence.
 6. **Fresh-agent test:** stop the fixer, invite a new agent, and it continues from the room documents alone.
@@ -48,7 +49,7 @@ that will not let that happen.
 |---|---|
 | Check engine (Python, standard library only) | `preflight/` |
 | Rulesets (`flip-the-switch`, `oss-release`) | `rules/` |
-| Sample project with 5 planted defects | `examples/` |
+| Sample project with 6 planted defects (each with a natural fix) | `examples/` |
 | Tests | `tests/` |
 | Switch group template: agents + room + roles + documents + kickoff | `templates/` |
 | Demo script and Switch feature map | `docs/` |
