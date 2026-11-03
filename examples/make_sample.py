@@ -5,18 +5,20 @@
     python3 examples/make_sample.py DEST --fixed    # the all-green version
 
 DEST must not exist or must be empty. The result is a fresh repo with fixed author, committer and
-dates, so two runs produce identical commits (only the folder path differs). Nothing is pushed:
-`origin` points at a made-up GitHub URL.
+dates, so two runs produce identical commits (only the folder path differs). Nothing is pushed from
+here: `origin` points at https://github.com/Asmit-Rai/preflight-sample, a real public repository that
+holds the all-green version, so the `repo-public` check has a real repository to ask GitHub about.
 
 Every defect has a natural fix that an agent can make on a branch: write the missing sections, add
 the LICENSE, replace the dead link, fix the code (not the test) so the test passes, add the video
 link. The token is the one risky step, so it needs the Captain: it sits only in the last commit, so
 it is purged with `git reset --soft HEAD~1`, deleting the line and committing again.
 
-Check it with the sample ruleset, which is the contest ruleset with `repo-public` made advisory
-(the made-up origin can never be public):
+Check it online with the contest ruleset. With no network, use the sample ruleset, which is the
+contest ruleset with `repo-public` made advisory (offline, that check cannot be answered):
 
-    python3 -m preflight run --project DEST --rules examples/sample.rules.toml --format chat
+    python3 -m preflight run --project DEST --rules rules/flip-the-switch.toml --format chat
+    python3 -m preflight run --project DEST --rules examples/sample.rules.toml --offline --format chat
 
 Standard library only. The fake token in the broken version is built at runtime, so no token-shaped
 text is ever stored in this file.
@@ -30,7 +32,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ORIGIN = "https://github.com/example-team/sample-submission.git"
+ORIGIN = "https://github.com/Asmit-Rai/preflight-sample.git"
 AUTHOR = "Sample Team"
 EMAIL = "sample@example.com"
 # The contest starts 2026-11-04T00:01:00+05:30; all three commits are after it, so no history rewrite is

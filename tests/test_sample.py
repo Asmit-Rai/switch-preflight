@@ -56,8 +56,8 @@ def quiet_main(argv: list[str]) -> int:
 
 
 def fake_internet(url: str, method: str = "GET", **kwargs: Any) -> net.Response:
-    """Answers like a healthy internet: the made-up repo is public, the video is 95 s long."""
-    if url.startswith("https://api.github.com/repos/example-team/sample-submission"):
+    """Answers like a healthy internet: the sample's repo is public, the video is 95 s long."""
+    if url.startswith("https://api.github.com/repos/Asmit-Rai/preflight-sample"):
         return net.Response(200, url, {}, b'{"private": false}')
     if url.startswith(VIDEO_URL):
         return net.Response(200, url, {}, b'<html>"lengthSeconds":"95"</html>')
@@ -98,7 +98,7 @@ class DeterminismTests(SampleCase):
                 repo = self.sample(f"dates{fixed}", fixed)
                 log = git(repo, "log", "--reverse", "--format=%aI|%cI|%an <%ae>|%s").splitlines()
                 self.assertEqual(log, [f"{when}|{when}|Sample Team <sample@example.com>|{subject}" for when, subject in COMMITS])
-                self.assertEqual(git(repo, "config", "--get", "remote.origin.url"), "https://github.com/example-team/sample-submission.git")
+                self.assertEqual(git(repo, "config", "--get", "remote.origin.url"), "https://github.com/Asmit-Rai/preflight-sample.git")
                 self.assertEqual(git(repo, "symbolic-ref", "--short", "HEAD"), "main")
 
     def test_destination_rules(self) -> None:
@@ -283,7 +283,7 @@ class FixedSampleTests(SampleCase):
         results = self.results(project, fetch=fake_internet)  # a healthy internet, no real network
         self.assertEqual({i: r.status for i, r in results.items() if r.status != "PASS"}, {})
         self.assertIn("video is 1:35", results["video-max-180s"].detail)
-        self.assertIn("github.com/example-team/sample-submission is public", results["repo-public"].detail)
+        self.assertIn("github.com/Asmit-Rai/preflight-sample is public", results["repo-public"].detail)
 
     def test_the_fixed_sample_is_not_ready_offline_because_network_checks_cannot_be_verified(self) -> None:
         results = self.results(self.sample("fixed", fixed=True), offline=True, fetch=no_network)
@@ -303,7 +303,7 @@ class FixedSampleTests(SampleCase):
         self.assertEqual(code, 0, out)
         text = pack.read_text()
         self.assertIn("# Submission pack: Roll Call", text)
-        self.assertIn("https://github.com/example-team/sample-submission", text)
+        self.assertIn("https://github.com/Asmit-Rai/preflight-sample", text)
         self.assertIn(VIDEO_URL, text)
         self.assertIn(head, text)
         self.assertEqual(read_verdict(project)["summary"], {"pass": 9, "fail": 0, "warn": 0, "skip": 0})
@@ -324,8 +324,8 @@ class SampleRulesetTests(SampleCase):
         project = self.sample("fixed", fixed=True)
         rules = load_ruleset(EXAMPLES / "sample.rules.toml")
         results = {r.id: r for r in run_checks(rules, Context(project, fetch=lambda url, **kw: net.Response(404, url) if "api.github.com" in url else fake_internet(url)))}
-        self.assertEqual(results["repo-public"].status, "WARN")  # the made-up repo is not public...
-        self.assertEqual([i for i, r in results.items() if r.required and r.status != "PASS"], [])  # ...and that is fine here
+        self.assertEqual(results["repo-public"].status, "WARN")  # GitHub says 404 here, and the check is advisory...
+        self.assertEqual([i for i, r in results.items() if r.required and r.status != "PASS"], [])  # ...so it does not block
 
 
 if __name__ == "__main__":

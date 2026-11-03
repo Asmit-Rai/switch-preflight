@@ -1,8 +1,10 @@
 # The Flip the Switch ruleset, for the generated sample project (examples/make_sample.py).
 #
-# The sample's `origin` is a made-up GitHub URL that was never pushed, so `repo-public` could never
-# pass. This file extends the real contest ruleset and makes that one check advisory, so the demo can
-# reach READY after the planted defects are fixed. Every other check is inherited unchanged.
+# The sample's `origin` is a real public repository (github.com/Asmit-Rai/preflight-sample), so
+# `repo-public` passes when you are online. With no network GitHub cannot be asked, the check is
+# SKIPped, and a SKIPped required check blocks READY. This file extends the real contest ruleset and
+# makes that one check advisory, so the sample can reach READY offline too. Every other check is
+# inherited unchanged.
 
 [meta]
 name = "Flip the Switch Hackathon (sample project)"

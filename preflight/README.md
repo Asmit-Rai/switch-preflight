@@ -250,5 +250,6 @@ All three commits are dated after the start, so `first-commit-after-start` passe
 offline except the ones that need the network (`repo-public`, `video-max-180s`). `--fixed` creates the all-green
 twin: a LICENSE, all sections, no dead link, a video link, passing tests, and a `settings_local.py` that reads its
 token from the environment. Both have fixed author, dates and messages, so they are byte-for-byte reproducible.
-Their `origin` is a made-up GitHub URL that is never pushed, so use `examples/sample.rules.toml` (the contest
-ruleset with `repo-public` made advisory) to reach READY.
+Their `origin` is a real public repository (`github.com/Asmit-Rai/preflight-sample`, which holds the all-green
+version), so the contest ruleset itself can reach READY online. Offline, `repo-public` cannot be answered and blocks
+READY, so use `examples/sample.rules.toml` (the contest ruleset with `repo-public` made advisory).
