@@ -15,13 +15,16 @@ Python 3.11+, standard library only. Run everything from the repo root.
 python3 -m preflight run --project DIR --rules rules/flip-the-switch.toml --format chat
 
 # 2. the gate: is the last run READY for this exact commit, on a clean tree, and fresh?
-python3 -m preflight verdict --project DIR
+python3 -m preflight verdict --project DIR [--approved-sha HEX]
 
-# 3. the submission pack (refuses while the gate is closed; same --max-age-min as verdict)
-python3 -m preflight pack --project DIR --out SUBMISSION.md [--meta preflight.toml]
+# 3. the submission pack (refuses while the gate is closed; same --max-age-min and --approved-sha as verdict)
+python3 -m preflight pack --project DIR --out SUBMISSION.md [--meta preflight.toml] [--approved-sha HEX]
 
 # 4. check a ruleset itself
 python3 -m preflight lint --rules rules/flip-the-switch.toml
+
+# 5. the ruleset's fingerprint: 12 hex characters, for the Captain to approve (see "Fingerprint" below)
+python3 -m preflight sha --rules rules/flip-the-switch.toml
 
 # tests (offline, deterministic)
 python3 -m unittest discover -s tests -v
@@ -35,7 +38,9 @@ python3 -m unittest discover -s tests -v
 Formats: `table` is the full report, every line at most 100 columns wide except the final verdict line.
 `chat` fits one Discord message (at most 1800 characters; blocking checks first, then optional ones, then one
 line for the passes; when it has to cut it adds a `(+N more, run with --format table)` line). `json` is the
-verdict document. All three end with the line `VERDICT: READY` or `VERDICT: NOT READY (blocking: id, id)`
+verdict document. The first line of `table` and `chat` shows which ruleset made the report:
+`ruleset: <name> v<N> sha256:<first 12 hex>` (after `PREFLIGHT`; a very long name is clipped, never the hash).
+All three end with the line `VERDICT: READY` or `VERDICT: NOT READY (blocking: id, id)`
 (`chat` shortens a very long list to `..., +N more`).
 
 ## Statuses and the verdict
@@ -55,29 +60,47 @@ verdict document. All three end with the line `VERDICT: READY` or `VERDICT: NOT 
 | Command | 0 | 1 | 2 |
 |---|---|---|---|
 | `run` | every required check passed | a required check failed or was SKIPped | no verdict could be produced: usage or config error (bad args, missing folder, invalid ruleset, unknown `--only` id) or an internal error (set `PREFLIGHT_DEBUG=1` for the traceback) |
-| `verdict` | `GATE OK: ready at <sha>` | `GATE CLOSED: <one reason>` | usage error |
-| `pack` | pack written | refused (gate closed, nothing written) | usage error (bad `--meta`) |
+| `verdict` | `GATE OK: ready at <sha>` | `GATE CLOSED: <one reason>` | usage error (including a bad `--approved-sha`) |
+| `pack` | pack written | refused (gate closed, nothing written) | usage error (bad `--meta`, bad `--approved-sha`) |
 | `lint` | no ERROR lines | at least one ERROR line | usage error |
+| `sha` | the 12-character fingerprint, nothing else, on stdout | never | the file cannot be read or is not a valid ruleset (nothing on stdout) |
 
 ## The gate (`verdict`)
 
 Reads `<project>/.preflight/verdict.json` and opens (prints `GATE OK: ready at <short sha>`, exit 0) only if
 all of these hold, checked in this order. Otherwise it prints `GATE CLOSED: <reason>` and exits 1.
 
-1. the file exists, parses, and matches schema 1
+1. the file exists, parses, and matches schema 1 (including `ruleset.sha256`, 64 hex characters)
 2. it agrees with itself: `verdict`, `blocking` and `summary` are **recomputed from `results`**, so a file
    edited to say READY while a result is FAIL is refused. A file with no required checks is refused
-3. the verdict is READY, and `dirty` is false (it was produced on a clean tree)
-4. `commit` equals the project's current `HEAD`
-5. the working tree is clean (the `.preflight/` folder is ignored)
-6. `created_at` is younger than `--max-age-min` (default 120) and not in the future
+3. only with `--approved-sha HEX`: `ruleset.sha256` starts with HEX (see below)
+4. the verdict is READY, and `dirty` is false (it was produced on a clean tree)
+5. `commit` equals the project's current `HEAD`
+6. the working tree is clean (the `.preflight/` folder is ignored)
+7. `created_at` is younger than `--max-age-min` (default 120) and not in the future
+
+**Approved ruleset.** A person (the Captain) approves a check list in chat and the scout records its
+fingerprint (`python3 -m preflight sha --rules FILE`). Without more, `run` with a trivial ruleset would also
+produce READY. So give the gate `--approved-sha HEX` (on `verdict` and on `pack`): 8 to 64 hex digits, upper or
+lower case, the first digits of the fingerprint are enough. It then stays closed unless the verdict's
+`ruleset.sha256` starts with HEX, with this message (the approved value as you typed it, the first 12
+characters of the hash the verdict used):
+
+```
+GATE CLOSED: ruleset was not the approved one (approved sha256:<HEX>, verdict used sha256:<12 hex>)
+```
+
+This check comes right after the file checks (steps 1 and 2) and before the commit and age checks, so the
+message does not depend on how stale the verdict is. Anything that is not 8 to 64 hex characters (empty,
+spaces, a `sha256:` prefix) is a usage error: exit 2. `pack` refuses exactly like a closed gate (exit 1).
 
 `pack` runs exactly this gate first and writes nothing when it is closed. Write the pack outside the repo or
 under `.preflight/` (for example `--out DIR/.preflight/SUBMISSION.md`): a new file inside the repo would make
 the tree dirty and close the gate again.
 
-Limit, stated plainly: the gate proves the file is fresh, bound to this commit and self-consistent. It cannot
-prove who wrote a fully consistent file. The backstops are the Captain's approval and re-running `run`.
+Limit, stated plainly: the gate proves the file is fresh, bound to this commit and self-consistent, and (with
+`--approved-sha`) that `run` recorded the approved ruleset's fingerprint. It cannot prove who wrote a fully
+consistent file, a forged fingerprint included. The backstops are the Captain's approval and re-running `run`.
 
 ## Rulesets (TOML)
 
@@ -106,6 +129,22 @@ Paths in rulesets must be relative and stay inside the project.
 badly formed id, missing required fields or parameters, unknown parameters, bad regex, bad timestamps,
 bad `rubric`. It also prints a WARNING for every `command` check, because that runs code on this machine
 and a person must approve it. `run` refuses a ruleset that has errors (exit 2).
+
+### Fingerprint
+
+Every loaded ruleset has a fingerprint, `sha256` (64 hex characters), computed from the **file bytes** as
+written (comments and spacing count; it is not a hash of the parsed meaning). Each file is read once and the
+hash is taken from the very bytes that were parsed.
+
+- Without `extends`: `sha256(file bytes)`, the same value as `shasum -a 256 FILE`.
+- With `extends`: every file in the chain contributes, parent first and the file you named last. Each one is
+  preceded by its length in bytes as 8 zero-padded decimal digits and a newline, then its bytes:
+  `sha256("%08d\n" % len(parent) + parent + "%08d\n" % len(child) + child)`. A chain of three hashes the grandparent,
+  then the parent, then the child. Changing one byte of any file, or the order, changes the fingerprint.
+
+`run` stores all 64 characters in `verdict.json` as `ruleset.sha256`; the `table` and `chat` reports show the
+first 12 in their first line; `python3 -m preflight sha --rules FILE` prints those 12 characters and a newline
+(nothing else on stdout).
 
 ## Check types
 
@@ -146,7 +185,7 @@ at most the first four characters of the value.
 ```json
 {
   "schema": 1,
-  "ruleset": {"name": "...", "version": 1, "source": "..."},
+  "ruleset": {"name": "...", "version": 1, "source": "...", "sha256": "<64 hex characters>"},
   "project": "/abs/path",
   "commit": "<full sha or null>",
   "dirty": false,
@@ -162,7 +201,9 @@ at most the first four characters of the value.
 ```
 
 `status` is PASS, FAIL, WARN or SKIP. `verdict` is READY or NOT_READY. `blocking` lists the ids of required
-checks that are not PASS. `.preflight/` should be in the project's `.gitignore`.
+checks that are not PASS. `ruleset.sha256` is required: the ruleset fingerprint (see "Fingerprint"). A file
+without it, or with anything other than 64 hex characters, is malformed and the gate closes
+(`malformed 'ruleset' field`). `.preflight/` should be in the project's `.gitignore`.
 
 ## Add a check type
 

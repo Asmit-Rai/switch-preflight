@@ -1,4 +1,4 @@
-"""Command line: run, verdict, pack, lint.
+"""Command line: run, verdict, pack, lint, sha.
 
 Exit codes: 0 ok, 1 not ready / gate closed / lint errors, 2 no verdict could be produced
 (usage error, bad ruleset, or an internal error).
@@ -14,12 +14,12 @@ from pathlib import Path
 
 from . import gitutil
 from .checks import Context, run_checks
-from .model import READY
+from .model import READY, Ruleset
 from .pack import build_pack, read_meta, write_pack
 from .report import format_chat, format_json, format_table
 from .ruleset import RulesetError, load_ruleset, parse_ruleset
 from .timeutil import now_iso
-from .verdict import DEFAULT_MAX_AGE_MIN, build_document, check_gate, verdict_path, write_json
+from .verdict import DEFAULT_MAX_AGE_MIN, build_document, check_gate, parse_approved_sha, verdict_path, write_json
 
 
 def _error(message: str) -> int:
@@ -27,17 +27,33 @@ def _error(message: str) -> int:
     return 2
 
 
+def _approved_sha(value: str) -> str:
+    """argparse type for --approved-sha: a bad value is a usage error (exit 2) with a clear message."""
+    try:
+        return parse_approved_sha(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
+
+
+def _load_ruleset(path: str) -> Ruleset | None:
+    """Load a ruleset. On errors print every one to stderr and return None; the caller then exits 2."""
+    try:
+        return load_ruleset(path)
+    except RulesetError as exc:
+        for problem in exc.problems:
+            print(problem, file=sys.stderr)
+        _error(f"{path} is not a valid ruleset (run `preflight lint --rules {path}`)")
+        return None
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     project = Path(args.project)
     if not project.is_dir():
         return _error(f"project folder not found: {project}")
     project = project.resolve()
-    try:
-        ruleset = load_ruleset(args.rules)
-    except RulesetError as exc:
-        for problem in exc.problems:
-            print(problem, file=sys.stderr)
-        return _error(f"{args.rules} is not a valid ruleset (run `preflight lint --rules {args.rules}`)")
+    ruleset = _load_ruleset(args.rules)
+    if ruleset is None:
+        return 2
 
     only = None
     if args.only:
@@ -70,8 +86,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if doc["verdict"] == READY else 1
 
 
+APPROVED_SHA_HELP = (
+    "stay closed unless the verdict was produced by the ruleset whose sha256 starts with HEX "
+    "(8 to 64 hex digits, see the `sha` command)"
+)
+
+
 def cmd_verdict(args: argparse.Namespace) -> int:
-    gate = check_gate(args.project, args.max_age_min)
+    gate = check_gate(args.project, args.max_age_min, approved_sha=args.approved_sha)
     print(gate.message)
     return 0 if gate.ok else 1
 
@@ -88,7 +110,7 @@ def cmd_pack(args: argparse.Namespace) -> int:
         except (OSError, ValueError) as exc:
             return _error(f"cannot read {meta_path}: {exc}")
 
-    gate = check_gate(project, args.max_age_min)
+    gate = check_gate(project, args.max_age_min, approved_sha=args.approved_sha)
     print(gate.message)
     if not gate.ok or gate.document is None:
         print("PACK REFUSED: the gate is closed, so no pack was written.")
@@ -112,6 +134,15 @@ def cmd_lint(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+def cmd_sha(args: argparse.Namespace) -> int:
+    """Print the short (12 hex) fingerprint of a ruleset: what the Captain approves in chat."""
+    ruleset = _load_ruleset(args.rules)
+    if ruleset is None:
+        return 2
+    print(ruleset.sha256[:12])
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python3 -m preflight",
@@ -132,6 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     verdict = sub.add_parser("verdict", help="the gate: is the last run READY for this exact commit?")
     verdict.add_argument("--project", required=True)
     verdict.add_argument("--max-age-min", type=float, default=DEFAULT_MAX_AGE_MIN)
+    verdict.add_argument("--approved-sha", type=_approved_sha, metavar="HEX", help=APPROVED_SHA_HELP)
     verdict.set_defaults(func=cmd_verdict)
 
     pack = sub.add_parser("pack", help="write the submission pack (refuses while the gate is closed)")
@@ -139,11 +171,16 @@ def build_parser() -> argparse.ArgumentParser:
     pack.add_argument("--out", required=True, help="Markdown file to write")
     pack.add_argument("--meta", metavar="preflight.toml", help="optional [project] facts (name, team, ...)")
     pack.add_argument("--max-age-min", type=float, default=DEFAULT_MAX_AGE_MIN)
+    pack.add_argument("--approved-sha", type=_approved_sha, metavar="HEX", help=APPROVED_SHA_HELP)
     pack.set_defaults(func=cmd_pack)
 
     lint = sub.add_parser("lint", help="validate a ruleset")
     lint.add_argument("--rules", required=True)
     lint.set_defaults(func=cmd_lint)
+
+    sha = sub.add_parser("sha", help="print a ruleset's fingerprint (first 12 hex characters of its sha256)")
+    sha.add_argument("--rules", required=True)
+    sha.set_defaults(func=cmd_sha)
     return parser
 
 

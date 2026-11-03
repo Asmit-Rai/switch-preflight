@@ -313,7 +313,7 @@ class CommandTests(RepoCase):
 
 class RunnerSafetyTests(RepoCase):
     def ruleset(self, *specs: CheckSpec) -> Ruleset:
-        return Ruleset("t", 1, "", [], list(specs), "t.toml")
+        return Ruleset("t", 1, "", [], list(specs), "t.toml", "0" * 64)
 
     def test_a_crashing_check_becomes_a_skip_and_the_rest_still_run(self) -> None:
         def boom(ctx: Context, params: dict) -> None:

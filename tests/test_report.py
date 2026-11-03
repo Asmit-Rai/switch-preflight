@@ -11,7 +11,8 @@ from preflight.model import Result, Ruleset
 from preflight.report import CHAT_LIMIT, format_chat, format_json, format_table, verdict_line
 from preflight.verdict import build_document
 
-RULESET = Ruleset("Flip the Switch Hackathon", 1, "https://example.org", [], [], "r.toml")
+SHA = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+RULESET = Ruleset("Flip the Switch Hackathon", 1, "https://example.org", [], [], "r.toml", SHA)
 LONG = "this detail is deliberately long, so that it has to wrap in the table and be clipped in the chat message "
 
 
@@ -33,7 +34,7 @@ class TableTests(unittest.TestCase):
             Result("secret-scan", "t", "secret_scan", True, "SKIP", "offline", ""),
         ]
         lines = format_table(doc_for(results)).splitlines()
-        self.assertEqual(lines[0], "PREFLIGHT  Flip the Switch Hackathon (ruleset v1)")
+        self.assertEqual(lines[0], "PREFLIGHT  ruleset: Flip the Switch Hackathon v1 sha256:a1b2c3d4e5f6")
         self.assertEqual(lines[1], "project: /path/to/proj   commit: 1a21df4   run: 2026-11-04T09:12:00+05:30")
         self.assertRegex(lines[2], r"^\s+#  ID\s+REQ  STATUS  DETAIL$")
         self.assertRegex(lines[3], r"^\s+1  repo-public\s+yes  PASS    github\.com/Asmit-Rai/x is public$")
@@ -71,7 +72,7 @@ class ChatTests(unittest.TestCase):
         self.assertLess(len(text), 400)
         self.assertNotIn("(+", text)
         lines = text.splitlines()
-        self.assertEqual(lines[0], "PREFLIGHT Flip the Switch Hackathon (v1) @ 1a21df4")
+        self.assertEqual(lines[0], "PREFLIGHT ruleset: Flip the Switch Hackathon v1 sha256:a1b2c3d4e5f6 @ 1a21df4")
         self.assertEqual(lines[1], "FAIL license: no LICENSE file found")
         self.assertIn("WARN opt: meh", lines)
         self.assertIn("PASS (1): git-clean", lines)

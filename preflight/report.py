@@ -18,6 +18,15 @@ CHAT_PASS_MAX = 150
 CHAT_BLOCKING_MAX = 380
 
 
+def ruleset_label(rules: dict[str, Any], width: int) -> str:
+    """`ruleset: <name> v<N> sha256:<first 12 hex>`, at most `width` characters if the name is long.
+
+    Only the name is ever clipped: the fingerprint is what the Captain compares with the approved one.
+    """
+    head, tail = "ruleset: ", f" v{rules['version']} sha256:{rules['sha256'][:12]}"
+    return head + clip(rules["name"], max(width - len(head) - len(tail), 8)) + tail
+
+
 def summary_line(doc: dict[str, Any]) -> str:
     s = doc["summary"]
     return f"SUMMARY: {s['pass']} pass, {s['fail']} fail, {s['warn']} warn, {s['skip']} skip"
@@ -64,7 +73,8 @@ def format_table(doc: dict[str, Any]) -> str:
     """The full report, fixed width (every line is at most 100 columns, except the final verdict line)."""
     rules = doc["ruleset"]
     results = doc["results"]
-    lines = [clip(f"PREFLIGHT  {rules['name']} (ruleset v{rules['version']})", TABLE_WIDTH)]
+    title = "PREFLIGHT  "
+    lines = [title + ruleset_label(rules, TABLE_WIDTH - len(title))]
     commit = short_sha(doc["commit"])
     one_line = f"project: {doc['project']}   commit: {commit}   run: {doc['created_at']}"
     if len(one_line) <= TABLE_WIDTH:
@@ -100,7 +110,8 @@ def format_chat(doc: dict[str, Any], limit: int = CHAT_LIMIT) -> str:
     the passes. If it does not fit, the tail is cut and a `(+N more ...)` line says so.
     """
     rules = doc["ruleset"]
-    head = clip(f"PREFLIGHT {rules['name']} (v{rules['version']}) @ {short_sha(doc['commit'])}", 100)
+    title, where = "PREFLIGHT ", f" @ {short_sha(doc['commit'])}"
+    head = title + ruleset_label(rules, 100 - len(title) - len(where)) + where
     footer = [summary_line(doc), verdict_line(doc, CHAT_BLOCKING_MAX)]
 
     def line(row: dict[str, Any]) -> tuple[str, int]:

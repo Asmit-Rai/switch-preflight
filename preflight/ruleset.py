@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -108,10 +110,32 @@ def _check_value(kind: str, value: Any, param: Param) -> str | None:
     return f"unsupported parameter kind {kind!r}"
 
 
-def _read_raw(path: Path, depth: int, problems: list[Problem]) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
-    """Parse one TOML file and, if it `extends` another, merge the base underneath."""
+def fingerprint(blobs: Sequence[bytes]) -> str:
+    """The ruleset's sha256 (64 hex characters), computed from the exact bytes that were parsed.
+
+    One file: sha256 of its bytes. With `extends`: sha256 over every file in the chain, base first and
+    the file named on the command line last, each one preceded by its length as 8 zero-padded decimal
+    digits and a newline. Changing any file in the chain changes the fingerprint.
+    """
+    if len(blobs) == 1:
+        return hashlib.sha256(blobs[0]).hexdigest()
+    digest = hashlib.sha256()
+    for blob in blobs:
+        digest.update(f"{len(blob):08d}\n".encode("ascii"))
+        digest.update(blob)
+    return digest.hexdigest()
+
+
+def _read_raw(
+    path: Path, depth: int, problems: list[Problem]
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[bytes]] | None:
+    """Parse one TOML file and, if it `extends` another, merge the base underneath.
+
+    The third item is the raw bytes of every file read, base first, for `fingerprint`.
+    """
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        blob = path.read_bytes()
+        data = tomllib.loads(blob.decode("utf-8"))
     except OSError as exc:
         problems.append(Problem("ERROR", "file", f"cannot read {path}: {exc.strerror or exc}"))
         return None
@@ -133,17 +157,17 @@ def _read_raw(path: Path, depth: int, problems: list[Problem]) -> tuple[dict[str
 
     base_path = meta.get("extends")
     if base_path is None:
-        return dict(meta), [c for c in checks if isinstance(c, dict)]
+        return dict(meta), [c for c in checks if isinstance(c, dict)], [blob]
     if not isinstance(base_path, str) or not base_path.strip():
         problems.append(Problem("ERROR", "meta", "'extends' must be a path to another ruleset"))
-        return dict(meta), [c for c in checks if isinstance(c, dict)]
+        return dict(meta), [c for c in checks if isinstance(c, dict)], [blob]
     if depth >= MAX_EXTENDS_DEPTH:
         problems.append(Problem("ERROR", "meta", "'extends' chain is too deep (loop?)"))
         return None
     base = _read_raw((path.parent / base_path).resolve(), depth + 1, problems)
     if base is None:
         return None
-    base_meta, base_checks = base
+    base_meta, base_checks, base_blobs = base
     merged_meta = {**base_meta, **{k: v for k, v in meta.items() if k != "extends"}}
     merged = [dict(c) for c in base_checks]
     for child in checks:
@@ -155,7 +179,7 @@ def _read_raw(path: Path, depth: int, problems: list[Problem]) -> tuple[dict[str
                 break
         else:
             merged.append(dict(child))
-    return merged_meta, merged
+    return merged_meta, merged, [*base_blobs, blob]
 
 
 def _validate_meta(meta: dict[str, Any], problems: list[Problem]) -> tuple[str, int, str, list[tuple[str, float]]]:
@@ -259,7 +283,7 @@ def parse_ruleset(path: Path | str) -> tuple[Ruleset | None, list[Problem]]:
     raw = _read_raw(path, 0, problems)
     if raw is None:
         return None, problems
-    meta, raw_checks = raw
+    meta, raw_checks, blobs = raw
     name, version, source, rubric = _validate_meta(meta, problems)
     seen: set[str] = set()
     checks: list[CheckSpec] = []
@@ -276,7 +300,7 @@ def parse_ruleset(path: Path | str) -> tuple[Ruleset | None, list[Problem]]:
         problems.append(Problem("WARNING", "file", "no required checks: nothing can ever block the verdict"))
     if any(p.level == "ERROR" for p in problems):
         return None, problems
-    return Ruleset(name, version, source, rubric, checks, str(path)), problems
+    return Ruleset(name, version, source, rubric, checks, str(path), fingerprint(blobs)), problems
 
 
 def load_ruleset(path: Path | str) -> Ruleset:

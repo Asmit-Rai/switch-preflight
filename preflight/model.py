@@ -53,6 +53,7 @@ class Ruleset:
     rubric: list[tuple[str, float]]
     checks: list[CheckSpec]
     path: str
+    sha256: str  # fingerprint of the ruleset file(s), 64 hex characters; see ruleset.fingerprint
 
 
 @dataclass

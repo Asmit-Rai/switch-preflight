@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from helpers import FIXTURES, RepoCase, git, read_verdict, run_cli, run_module, write
@@ -102,7 +104,11 @@ class RunOutputTests(RepoCase):
         doc = read_verdict(repo)
         self.assertEqual(list(doc), SCHEMA_TOP)
         self.assertEqual(doc["schema"], 1)
-        self.assertEqual(doc["ruleset"], {"name": "Tiny fixture", "version": 3, "source": "https://example.org/tiny"})
+        tiny_sha = hashlib.sha256(Path(TINY).read_bytes()).hexdigest()  # no `extends`: the plain file hash
+        self.assertEqual(
+            doc["ruleset"],
+            {"name": "Tiny fixture", "version": 3, "source": "https://example.org/tiny", "sha256": tiny_sha},
+        )
         self.assertEqual(doc["project"], str(repo))
         self.assertRegex(doc["commit"], r"^[0-9a-f]{40}$")
         self.assertIs(doc["dirty"], False)
@@ -135,7 +141,8 @@ class RunOutputTests(RepoCase):
     def test_table_and_chat_formats(self) -> None:
         repo = self.repo({"other.txt": "x"})
         _, table, _ = run_cli("run", "--project", str(repo), "--rules", TINY, "--format", "table")
-        self.assertTrue(table.startswith("PREFLIGHT  Tiny fixture (ruleset v3)"))
+        tiny_sha12 = hashlib.sha256(Path(TINY).read_bytes()).hexdigest()[:12]
+        self.assertTrue(table.startswith(f"PREFLIGHT  ruleset: Tiny fixture v3 sha256:{tiny_sha12}\n"))
         self.assertIn("SUMMARY: 1 pass, 1 fail, 0 warn, 0 skip", table)
         _, chat, _ = run_cli("run", "--project", str(repo), "--rules", TINY, "--format", "chat")
         self.assertLessEqual(len(chat), 1800)

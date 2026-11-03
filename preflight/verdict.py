@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,6 +25,17 @@ VERDICT_DIR = gitutil.IGNORED_DIR
 VERDICT_FILE = "verdict.json"
 DEFAULT_MAX_AGE_MIN = 120.0
 CLOCK_SKEW_MIN = 5.0  # a verdict dated further in the future than this is refused
+SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
+APPROVED_SHA_RE = re.compile(r"[0-9a-fA-F]{8,64}")
+
+
+def parse_approved_sha(value: str) -> str:
+    """The Captain's approved fingerprint (or a prefix of it): 8 to 64 hex digits, returned as given."""
+    if not isinstance(value, str) or APPROVED_SHA_RE.fullmatch(value) is None:
+        raise ValueError(
+            f"approved sha must be 8 to 64 hexadecimal characters (0-9, a-f) with no prefix or spaces, got {value!r}"
+        )
+    return value
 
 
 def verdict_path(project: Path | str) -> Path:
@@ -55,7 +67,7 @@ def build_document(
     verdict, blocking = decide(rows)
     return {
         "schema": SCHEMA,
-        "ruleset": {"name": ruleset.name, "version": ruleset.version, "source": ruleset.source},
+        "ruleset": {"name": ruleset.name, "version": ruleset.version, "source": ruleset.source, "sha256": ruleset.sha256},
         "project": str(project),
         "commit": commit,
         "dirty": dirty,
@@ -94,8 +106,10 @@ def validate_document(doc: Any) -> str | None:
         if key not in doc or not isinstance(doc[key], kind):
             return f"verdict.json has a missing or malformed '{key}' field"
     ruleset = doc["ruleset"]
+    sha256 = ruleset.get("sha256")
     if not (isinstance(ruleset.get("name"), str) and isinstance(ruleset.get("version"), int)
-            and isinstance(ruleset.get("source"), str)):
+            and isinstance(ruleset.get("source"), str)
+            and isinstance(sha256, str) and SHA256_RE.fullmatch(sha256)):
         return "verdict.json has a malformed 'ruleset' field"
     try:
         parse_timestamp(doc["created_at"])
@@ -138,8 +152,16 @@ def check_gate(
     project: Path | str,
     max_age_min: float = DEFAULT_MAX_AGE_MIN,
     now: datetime | None = None,
+    approved_sha: str | None = None,
 ) -> Gate:
-    """Open only for a fresh, self-consistent READY verdict on the current commit and a clean tree."""
+    """Open only for a fresh, self-consistent READY verdict on the current commit and a clean tree.
+
+    With `approved_sha` (8 to 64 hex digits) it also stays closed unless the verdict was produced by the
+    ruleset whose fingerprint starts with those digits. An invalid value raises ValueError instead of
+    silently approving everything.
+    """
+    if approved_sha is not None:
+        parse_approved_sha(approved_sha)
     project = Path(project)
     if not project.is_dir():
         return _closed(f"project folder not found: {project}")
@@ -153,6 +175,11 @@ def check_gate(
     problem = validate_document(doc)
     if problem:
         return _closed(problem)
+    used = doc["ruleset"]["sha256"]
+    if approved_sha is not None and not used.lower().startswith(approved_sha.lower()):
+        return _closed(
+            f"ruleset was not the approved one (approved sha256:{approved_sha}, verdict used sha256:{used[:12]})"
+        )
     if doc["verdict"] != READY:
         return _closed(f"verdict is NOT READY (blocking: {', '.join(doc['blocking'])})")
     commit = doc["commit"]
