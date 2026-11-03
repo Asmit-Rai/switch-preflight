@@ -1,5 +1,8 @@
 # Preflight
 
+[![CI](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/ci.yml/badge.svg)](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/ci.yml)
+[![Preflight](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/preflight.yml/badge.svg)](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/preflight.yml)
+
 **A Switch room that will not let a team ship a broken submission.**
 Built for the Flip the Switch hackathon (WeMakeDevs x DevTools Academy x Switch AI) by Team AXA.
 

@@ -1,0 +1,31 @@
+# Dogfood: Preflight checks its own repository against the contest rules on every push to main.
+# The run page (job summary) shows the full check table; the HTML report is kept as an artifact.
+name: Preflight
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Preflight checks this repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: preflight
+        uses: ./
+        with:
+          rules: rules/flip-the-switch.toml
+      - name: Keep the HTML report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preflight-report
+          path: ${{ runner.temp }}/preflight/report.html
+          if-no-files-found: ignore
