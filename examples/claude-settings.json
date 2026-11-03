@@ -3,23 +3,19 @@
     "allow": [
       "Bash(kit/pf:*)",
       "Bash(kit/examples/make_sample.py:*)"
-    ],
-    "ask": [
-      "Bash(git push:*)",
-      "Bash(git -C project push:*)",
-      "Bash(git reset:*)",
-      "Bash(git -C project reset:*)",
-      "Bash(git rebase:*)",
-      "Bash(git -C project rebase:*)",
-      "Bash(git filter-branch:*)",
-      "Bash(git -C project filter-branch:*)",
-      "Bash(git commit --amend:*)",
-      "Bash(git -C project commit --amend:*)",
-      "Bash(git branch -D:*)",
-      "Bash(git -C project branch -D:*)",
-      "Bash(git rm:*)",
-      "Bash(git -C project rm:*)",
-      "Bash(rm:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/kit/hooks/risky_git.py\""
+          }
+        ]
+      }
     ]
   }
 }

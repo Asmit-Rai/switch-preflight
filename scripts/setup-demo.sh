@@ -6,13 +6,15 @@
 #
 # It makes:
 #   FOLDER/kit/                   the checker (a clone of this repository)
-#   FOLDER/.claude/settings.json  the permission rules the agents run under (see below)
+#   FOLDER/.claude/settings.json  the permission rules and the approval hook the agents run under
 #   FOLDER/rules/                 where the Scout puts the draft and the approved check list
 #   FOLDER/project/               a sample project with 6 planted defects
 #
 # Why the permission file: Claude Code's auto mode refuses to run code that was just downloaded
 # ("Code from External"), so the Inspector could not start the checker. The file allows exactly
-# one command, kit/pf, and makes every risky git step (reset, rebase, push, rm, ...) ask a person.
+# one command, kit/pf. It also registers hooks/risky_git.py, a small program that reads every shell
+# command before it runs and makes the risky ones (git reset, rebase, push, rm, ...) ask a person,
+# however the agent writes them. In a Switch room the question is a permission card.
 # Agents must never write this file themselves: a person installs it.
 set -eu
 

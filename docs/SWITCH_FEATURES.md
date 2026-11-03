@@ -17,7 +17,7 @@ Code on macOS. "Verified" means we ran it ourselves during the hackathon.
 | 6 | **Roles, exclusive and shared** | `editor` is exclusive: exactly one agent may change the project at a time. `judge` is shared | `room.roles`, `assume_role` | 1, 5, 10 | yes |
 | 7 | **Room documents as shared memory** | `rules-digest` (every rule with its quote), `checks` (the approved list and its fingerprint), `scorecard`, `runbook` | `room.docs`, agent tools `create_room_document`, `load_internal_documents` | 2, 3, 10 | yes |
 | 8 | **Room instructions** | The rule of the room and the folder layout reach every agent when it joins, including a new one | `room.instructions` | 11 | yes |
-| 9 | **Permission cards in chat** | Risky git steps (reset, rebase, push, rm) are answered by a person with `Allow once / Allow for this session / Decline`, and Switch records who answered | `examples/claude-settings.json` (`ask` rules), agent Auto mode | 6, 7 | yes (cards seen on Discord) |
+| 9 | **Permission cards in chat** | Risky shell commands (git reset, rebase, push, rm, ...) are answered by a person with `Allow once / Allow for this session / Decline`, and Switch records who answered. A small hook (`hooks/risky_git.py`, with tests) decides which commands ask, so the card does not depend on how the agent words the command | `examples/claude-settings.json`, `hooks/risky_git.py` | 6, 7 | yes (cards seen on Discord) |
 | 10 | **Agent-to-agent handoff** | `scout -> inspector -> fixer -> reviewer` hand work to each other by alias inside the room | agent instructions, `send_targeted_message` | 5, 8 | yes |
 | 11 | **Fresh-agent test / late joiner** | `!invite-agent @pf-spare` adds an agent with no background. It catches up from room instructions, the thread and the documents | `agents[].pf-spare`, `!invite-agent` | 11 | see `docs/DEMO_SCRIPT.md` |
 | 12 | **Kickoff message** | The template posts a first message on the creator's behalf so the inspector proves the checker runs | `kickoff:` | setup | yes |
@@ -36,9 +36,13 @@ Code on macOS. "Verified" means we ran it ourselves during the hackathon.
 - Agent instructions are stored exactly as written in Switch Console 0.40: curly-brace
   placeholders are not filled in for agents (they are for room instructions). The template is
   written around this.
+- Permission rules such as `Bash(git reset:*)` only match commands that START with that text, and
+  agents write `git -C /path reset` or `cd x && git reset`. We found this when a hard reset ran with
+  no card. The hook reads the command itself, so it does not depend on the wording. It is a guard,
+  not a sandbox: it cannot see inside a script or `python3 -c` code.
 - Documents seeded by a template cannot be edited by agents, so agents create the documents they
   need (`rules-digest`, `checks`, `scorecard`).
 - Document contents cannot be read from Discord; an agent has to paste them.
 - Claude Code's auto mode refuses to run freshly downloaded code. `scripts/setup-demo.sh` installs
-  a narrow permission file (allow `kit/pf`; ask for risky git steps). A person installs it;
+  a narrow settings file (allow `kit/pf`; a hook that makes risky commands ask). A person installs it;
   agents never edit their own permissions.

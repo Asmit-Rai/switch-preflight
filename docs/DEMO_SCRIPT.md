@@ -7,8 +7,9 @@ Before you start (not on camera):
 
 1. `sh scripts/setup-demo.sh` (once), then use the Switch template (README, "Run it").
 2. `sh scripts/reset-demo.sh` for a fresh sample project with 6 planted defects.
-3. In Switch Console, check the Fixer's **Auto mode** is ON (default). Risky git steps then
-   show a permission card because of the rules in `.claude/settings.json`.
+3. Leave the Fixer's **Auto mode** ON (default) so everyday work flows without cards. Risky shell
+   commands still show a card, because `.claude/settings.json` registers `hooks/risky_git.py`, which
+   makes them ask. After you change that file, run `!reset-all-agents` so every session reloads it.
 4. Have the approved check list ready. If the room has no `checks` document yet, do step 1 below
    first (it takes about 4 minutes, so for a short video record it once and cut).
 
