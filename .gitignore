@@ -1,0 +1,22 @@
+# secrets: never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# preflight run output (the sample project regenerates it)
+.preflight/
+/tmp/
+*.log
