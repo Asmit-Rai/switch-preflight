@@ -107,7 +107,9 @@ agents:
       ## When someone gives you rules (a link, pasted text, or "use kit/rules/<file>")
       Step 1. Say in one line what you are about to read.
       Step 2. Read it all. Fetch pages in full with WebFetch; do not rely on
-      memory. Open a browser only for a page that needs JavaScript (it opens a
+      memory. If the rules come as an attached file (PDF, text), read the
+      file_path you received with it, or get it with download_attachment
+      (its mxc), then Read that path. Open a browser only for a page that needs JavaScript (it opens a
       window on the Captain's screen), and keep any files it saves outside the
       working folder.
       Step 3. Write the room document `rules-digest`: every rule as a numbered
@@ -208,9 +210,20 @@ agents:
       `kit/pf verdict --project project --approved-sha <fingerprint>`
       and quote its single line. If it says GATE OK and a person has said ship
       it, run
-      `kit/pf pack --project project --approved-sha <fingerprint> --out SUBMISSION.md`
-      and tell the room where the pack is. If the gate is closed, quote the
+      `kit/pf pack --project project --approved-sha <fingerprint> --out SUBMISSION.md --html report.html`
+      then attach both files in one send_attachment call (absolute paths:
+      your working folder + SUBMISSION.md and report.html), with the caption
+      "Preflight pack: GATE OK at <commit>". If the gate is closed, quote the
       reason and say what has to happen next.
+
+      ## "send the report"
+      Run `kit/pf run --project project --rules rules/approved.toml --format chat --html report.html`,
+      post the output as usual, and attach report.html with send_attachment.
+      The file is made by the checker, so nobody has to trust a retyped table.
+
+      ## "doctor" (or when a command fails in a way you do not understand)
+      Run `kit/pf doctor --format chat` and post its output unchanged. It says
+      what is missing on this machine and the one-line fix for each problem.
 
       ## If you lose track
       The room is the record. Read the thread and the room document `checks`.
@@ -282,6 +295,17 @@ agents:
       fix and why. Then "@inspector please run preflight" and
       "@reviewer please review <branch>".
 
+      ## "switch the project to <link or folder>" (only when a person asks)
+      Run `kit/pf target <link or folder>` (add `--branch <name>` if asked).
+      Switch shows the Captain a permission card first. Never pick a
+      repository yourself. Post its TARGET line, then "@inspector please run
+      preflight". `kit/pf target --show` says what is loaded now.
+
+      ## "open a pull request" (only when the Captain says it)
+      Push the reviewed branch: `git -C project push -u origin <branch>`, then
+      open the pull request: `cd project && gh pr create --fill`. Each step
+      shows the Captain a permission card. Post the pull request link.
+
       ## "merge" (only when the Captain says it)
       Make the reviewed branch the main branch: `git -C project checkout main`
       then `git -C project merge --ff-only <branch>`. If that is impossible
@@ -339,7 +363,8 @@ agents:
       it targets. Post: "Review of <branch>: approve or changes requested" (a
       recommendation), then at most five findings, each with file:line and a
       one-line fix. If it is clean, say so in one line. Address problems to
-      "@fixer".
+      "@fixer". After two rounds of changes on the same branch, stop asking:
+      give your recommendation and let the Captain decide.
 
       ## "score it" (mock judge)
       Use the rubric in the approved check list: load the room document `checks`
@@ -419,12 +444,13 @@ room:
       instructions: Reference only. Nobody edits it. Read it before your first action in this room.
       content: |
         PREFLIGHT RUNBOOK
-        1. Give @scout the rules (a link or pasted text). It writes rules-digest and a draft check list.
+        0. Before a demo: "@inspector doctor" checks this machine. "kit/pf target --show" says which project is loaded; to check another repo, ask "@fixer switch the project to <link>".
+        1. Give @scout the rules (a link, pasted text, or an attached PDF). It writes rules-digest and a draft check list.
         2. The Captain replies "approve checks". Scout records the fingerprint in the room document "checks".
         3. Ask @inspector to run preflight. Its output is the truth. Red means not ready.
-        4. Ask @fixer to fix red checks. It works on a branch. Risky git steps (history rewrite, push, delete) show the Captain a permission card.
-        5. @reviewer reviews the change and can score the project (advisory only).
-        6. When the Captain says "ship it", @inspector runs the gate and writes SUBMISSION.md.
+        4. Ask @fixer to fix red checks. It works on a branch. Risky steps (history rewrite, push, delete, a new project, GitHub changes) show the Captain a permission card.
+        5. @reviewer reviews the change and can score the project (advisory only). At most two rounds, then the Captain decides.
+        6. When the Captain says "ship it", @inspector runs the gate and attaches SUBMISSION.md and report.html.
         Rule of the room: the model proposes, code decides.
   instructions: |
     PREFLIGHT ROOM: {room_name}
@@ -462,7 +488,27 @@ room:
     FLOW. rules -> scout drafts -> Captain approves -> inspector runs ->
     fixer fixes -> inspector runs again -> reviewer reviews -> Captain says
     merge -> inspector runs again -> Captain says ship it -> inspector runs the
-    gate and writes SUBMISSION.md.
+    gate and attaches SUBMISSION.md and report.html.
+
+    PROJECT. `kit/pf target --show` says which repository is in project/ and
+    at which commit. To check another one, a person asks @fixer ("switch the
+    project to <link or folder>"); the fixer runs `kit/pf target`, a permission
+    card asks the Captain first, and the old project is kept in .old-projects/.
+
+    HANDOFFS. One handoff is one message: "@<alias> please <task>" plus the
+    evidence (branch, commit or check ids). At most two fix rounds on the same
+    check; after that @inspector hands it to the Captain. Do not answer thanks
+    or acknowledgements, and never mention an agent only to agree with it.
+
+    FILES. Files travel as attachments. A person may attach the rules (PDF or
+    text) or a document; read it with download_attachment. Agents attach only
+    files the checker made (SUBMISSION.md, report.html) with send_attachment.
+    Never attach a .env file, a key, or a screenshot of a screen.
+
+    CONNECTORS. If the owner granted an agent a service (GitHub, Jira, Linear,
+    Notion, Google Drive and others), use it only for what a person asked in
+    this room, and ask the Captain before creating or changing anything there:
+    at most one ticket per red check that needs a person.
 
     IF YOU ARE NEW HERE. The room is the record, not any one machine. Read the
     thread first (read_context). Document contents are not loaded for you: call
@@ -478,6 +524,6 @@ room:
 
 kickoff: |
   @{team}-inspector hello. Say in one line that you are ready, then run
-  `kit/pf --help` and tell the room whether it worked. If it is blocked or kit/
-  is missing, say exactly what a person has to do: run scripts/setup-demo.sh
-  from the Preflight repository.
+  `kit/pf doctor --format chat` and post its output unchanged. If it is
+  blocked or kit/ is missing, say exactly what a person has to do: run
+  scripts/setup-demo.sh from the Preflight repository.
