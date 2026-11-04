@@ -146,12 +146,50 @@ class TemplateCase(unittest.TestCase):
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertIn('"{team}-' + role + '"', room)
-                self.assertRegex(room, re.escape('"{team}-' + role + '": ' + role))
+                self.assertRegex(room, re.escape('"{team}-' + role + '": sr-' + role))
+
+    def test_no_alias_is_a_plain_role_word(self) -> None:
+        # Run 1: an alias such as `analyst` is also the name of any agent made earlier with that name (the six agents
+        # of 3 Nov), so Switch warned "Analyst (analyst) isn't in this room" on every mention (BUGS.md, row 1).
+        room = "\n".join(section(self.text, "room"))
+        aliases = re.findall(r'^\s+"\{team\}-\w+": (\S+)\s*$', room, re.M)
+        self.assertEqual(len(aliases), len(ROLES))
+        self.assertFalse(set(aliases) & set(ROLES), aliases)
+        self.assertEqual(sorted(aliases), sorted("sr-" + role for role in ROLES))
+
+    def test_every_mention_in_the_instructions_is_a_prefixed_alias(self) -> None:
+        allowed = {"sr-" + role for role in ROLES}
+        texts = {name: agent["fields"]["instructions"] for name, agent in self.agents.items()}
+        texts["room"] = "\n".join(section(self.text, "room"))
+        for name, text in texts.items():
+            with self.subTest(where=name):
+                # `@types/react` and `@vitejs/plugin-react` are npm packages, not mentions
+                mentions = set(re.findall(r"@([A-Za-z][\w-]*)(?![\w/-])", text))
+                self.assertLessEqual(mentions, allowed, "a plain @analyst would match an old agent of that name")
+
+    def test_no_agent_is_told_to_mention_itself(self) -> None:
+        # Run 1: "Start your reply with @analyst" in the analyst's own messages made Switch warn that the analyst was
+        # not in the room, and the analyst had to add a note about it to its brief (BUGS.md, row 1).
+        for role in ROLES:
+            with self.subTest(role=role):
+                text = " ".join(self.agent(role)["fields"]["instructions"].split())  # a wrapped line is the same words
+                self.assertNotIn("@sr-" + role, text)
+                self.assertNotIn("@" + role, text)
+                self.assertNotIn("Start your reply with @", text)
+
+    def test_the_room_description_tells_a_person_how_to_address_an_agent(self) -> None:
+        room = "\n".join(section(self.text, "room"))
+        description = re.search(r'^\s+description: "(.*)"\s*$', room, re.M)
+        self.assertTrue(description, "the room has a description (it is the Discord channel topic)")
+        for role in ROLES:
+            with self.subTest(role=role):
+                self.assertIn("@sr-" + role, description.group(1))
 
     def test_no_room_role_or_document_is_named_like_an_alias(self) -> None:
         room = "\n".join(section(self.text, "room"))
         names = set(re.findall(r"^\s+- name: (\S+)\s*$", room, re.M))
         self.assertFalse(names & set(ROLES), "a role named like an alias clashed with the alias in the first template")
+        self.assertFalse(names & {"sr-" + role for role in ROLES})
 
     def test_every_placeholder_is_a_declared_parameter(self) -> None:
         params = set(re.findall(r"^  (\w+):\s*$", "\n".join(section(self.text, "params")), re.M))
@@ -176,10 +214,10 @@ class TemplateCase(unittest.TestCase):
                         "plan-T<n>", "APPROVED:"],
             "executor": ["fail for the right reason", "least code", "whole suite", "skips or deletes a test",
                          "git switch -c", "never switch to main", "plan-T<n>", "package-lock.json",
-                         "stop every server", "step <k> test:", "git add -A", "@planner please fix step",
+                         "stop every server", "step <k> test:", "git add -A", "@sr-planner please fix step",
                          "kill <pid>"],
             "reviewer": ["tests first", "mock away", "approve", "changes needed", "plan-T<n>", "step <k> test:",
-                         "@executor approved:", "make no handoff"],
+                         "@sr-executor approved:", "make no handoff"],
             "tester": ["git clone --branch", "npm ci", "PASS", "FAIL", "never take", "EVERY", "port 4321",
                        "headless browser", "step <k> test:", "make no handoff", "write no files"],
             "advisor": ["closing note", "no rule slipped", "no issues", "plan-T<n>", "step <k> test:"],

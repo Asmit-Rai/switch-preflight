@@ -14,13 +14,13 @@ Files here: `SPEC.md` (the spec), `team.template.yaml` (the six agents and the r
       and the permission file.
 - [ ] Switch Console is open and its local server runs: `curl -s http://127.0.0.1:52258/health`.
 - [ ] Switch Console: Templates > Import template > paste `workflow/team.template.yaml` > Use.
-      Run 1 of Part A: keep the defaults. Create all. The kickoff wakes `@analyst`. Nothing to type.
+      Run 1 of Part A: keep the defaults. Create all. The kickoff wakes `@sr-analyst`. Nothing to type.
 
 ## 2. During a run: a person does only four things
 
 1. Answer the analyst's questions.
-2. Reply `@analyst confirm brief`.
-3. Reply `@planner approve 1-N` (N is the last step).
+2. Reply `@sr-analyst confirm brief`.
+3. Reply `@sr-planner approve 1-N` (N is the last step).
 4. Merge, after the tester says all PASS and the advisor posted its note:
    `git -C ~/hackthone/sketchroom switch main`, then
    `git -C ~/hackthone/sketchroom merge --no-ff part-a-run1`, then
@@ -65,7 +65,7 @@ Answer yes or no for each, with the evidence (a quote from the room):
 
 1. `git switch -c catch-check part-a-run1`
 2. Change the page heading in the code (not the test) so it no longer says "Sketchroom". Commit.
-   Ask `@tester` and `@reviewer` to check `catch-check`. Both must report it. They only report:
+   Ask `@sr-tester` and `@sr-reviewer` to check `catch-check`. Both must report it. They only report:
    a branch with no task gets no hand-off.
 3. Also edit the test to expect the wrong heading, so `npm test` passes. Commit.
    The tester must still FAIL the item. The reviewer must flag the edited test.
