@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"__HOOK__\""
+            "command": "python3 \"__HOOK__\" --deny"
           }
         ]
       }

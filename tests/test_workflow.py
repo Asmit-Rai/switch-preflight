@@ -228,7 +228,8 @@ class TemplateCase(unittest.TestCase):
             # nobody knew was needed.
             "tester": ["git clone --branch", "npm ci", "PASS", "FAIL", "never take", "EVERY", "port 4321",
                        "headless browser", "step <k> test:", "make no handoff", "write no files",
-                       "never delete anything", "git switch --detach", "its own second clone"],
+                       "never delete anything", "git switch --detach", "its own second clone",
+                       "refuses it at once"],  # the hook says no now; it no longer waits for a click
             # Run 1, bug 4: the Advisor called a package the Reviewer had counted inside section 4 "outside the plan".
             "advisor": ["closing note", "no rule slipped", "no issues", "plan-T<n>", "step <k> test:",
                         "named in its commit"],
@@ -244,7 +245,8 @@ class TemplateCase(unittest.TestCase):
         room = words("\n".join(section(self.text, "room")))
         for phrase in ("SPEC.md", "WORKFLOW BUG:", "list_participants", "start-", "One part per run",
                        "not the agent name",  # run 1, bug 5: hand-offs went to @tdd-executor, not the alias
-                       "approval card", "a command that deletes files"):  # run 2, bug 6
+                       "approval card", "a command that deletes files",  # run 2, bug 6
+                       "refused at once"):  # the hook answers no, so a delete never waits for a click
             with self.subTest(room=phrase):
                 self.assertIn(phrase.lower(), room)
 
@@ -273,6 +275,12 @@ class FilesCase(unittest.TestCase):
             self.assertFalse([rule for rule in allow if word in rule], word)
         self.assertFalse([rule for rule in allow if rule.startswith("Bash(rm")])
         self.assertIn("__HOOK__", settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"])
+
+    def test_the_permission_file_makes_the_hook_say_no_instead_of_ask(self) -> None:
+        # run 2, bug 6: a card nobody can click is a silent hang; a "no" is an answer the agent can act on
+        settings = json.loads((WORKFLOW / "claude-settings.json").read_text(encoding="utf-8"))
+        command = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        self.assertTrue(command.endswith('" --deny'), command)
 
 
 class SetupCase(unittest.TestCase):

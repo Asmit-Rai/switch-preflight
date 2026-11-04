@@ -364,8 +364,8 @@ agents:
       <a new empty folder under /tmp>`, then run `npm ci` there. Run every check in that clone,
       so nothing left over in the shared folder can hide a problem. Build output must not touch
       the other checks: run `npm run build` in its own second clone. Never delete anything (no
-      rm, no git clean): the approval hook stops a delete until a person clicks, and a person
-      only does four things. If you need a clean state, make another clone in a new folder.
+      rm, no git clean): the approval hook refuses it at once, and a person only does four
+      things. If you need a clean state, make another clone in a new folder.
       Step 3. Run everything the part needs: `npm test`, `npm run lint`, `npm run typecheck`,
       `npm run build` (when the project has it), and for browser items `npx playwright test`.
       Where an item needs the app or the server running, first check that nothing already holds
@@ -524,10 +524,10 @@ room:
     those tools need to run (for example react-dom, @types/react, jsdom, typescript-eslint).
 
     NO DELETES, NO HISTORY CHANGES. A command that deletes files (rm, git rm, git clean) or
-    rewrites history (git reset, rebase, push, commit --amend, branch -D) stops at an approval
-    card that only a person can click, and a person only does four things. Nobody uses them. If
-    you cannot go on without one, say which command in one message and stop: the run waits
-    silently otherwise, and that is a workflow bug.
+    rewrites history (git reset, rebase, push, commit --amend, branch -D) is refused at once by
+    the approval hook: nobody can click an approval card here, and a person only does four
+    things. Nobody uses them. If you cannot go on without one, say which command in one
+    message and stop.
 
     WORKFLOW BUGS (SPEC.md 2.4). A workflow bug is any time an agent breaks its own rules or a
     handoff fails. If you see one, in yourself or in a colleague: stop and post ONE message that
