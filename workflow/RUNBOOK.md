@@ -9,7 +9,7 @@ Files here: `SPEC.md` (the spec), `team.template.yaml` (the six agents and the r
 
 ## 1. Before the first run (once)
 
-- [ ] `python3 -m unittest tests.test_workflow` passes (the template and the script are checked).
+- [ ] `python3 -m unittest discover -s tests -p test_workflow.py` passes (the template and the script are checked).
 - [ ] `sh workflow/setup.sh` makes `~/hackthone/sketchroom`: SPEC.md at one commit tagged `start-a`,
       and the permission file.
 - [ ] Switch Console is open and its local server runs: `curl -s http://127.0.0.1:52258/health`.
@@ -32,7 +32,7 @@ Anything else a person has to do is a workflow bug.
 
 1. Stop the run: `!interrupt @agent` in the room (or `!reset-all-agents`). Do not touch the app.
 2. Add a row to `workflow/BUGS.md`. Quote what happened.
-3. Fix `team.template.yaml` or `claude-settings.json`. Run `python3 -m unittest tests.test_workflow`.
+3. Fix `team.template.yaml` or `claude-settings.json`. Run `python3 -m unittest discover -s tests -p test_workflow.py`.
 4. Put the folder back at the start: `sh workflow/setup.sh --reset`. It deletes everything that
    git does not track (node_modules, dist ...), keeps the failed branch, and installs the latest
    permission file.
