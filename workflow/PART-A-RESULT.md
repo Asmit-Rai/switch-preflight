@@ -2,6 +2,8 @@
 
 **Clean run: run 4.** Room `sketchroom-a-run4`, branch `part-a-run4`, tip `970948b`, Wed 4 Nov 22:44-23:16 IST.
 A person did only the allowed things: answered the analyst, said `confirm brief`, said `approve 1-6`.
+These person messages were typed in Discord by the assistant (the main session or a Mac helper session, using Asmit's
+logged-in Discord in Brave), word for word what a person would type.
 Nothing is merged yet: a person merges (RUNBOOK.md section 2).
 
 | # | Check | Result | Evidence (from the room and from git) |

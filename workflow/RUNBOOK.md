@@ -28,6 +28,10 @@ Files here: `SPEC.md` (the spec), `team.template.yaml` (the six agents and the r
 
 Anything else a person has to do is a workflow bug.
 
+One thing a person must NOT do during a run: start the app (`npm start`) on port 4321. The browser test of Part B and
+later starts its own server on 4321. If the port is taken, the executor (or tester) asks in the room and waits; it never
+kills a process it did not start. (Part B run 1 lost 69 minutes to this.) Look at the app after the tester has finished.
+
 ## 3. A workflow bug: stop, log, fix the template, run again
 
 1. Stop the run: `!interrupt @agent` in the room (or `!reset-all-agents`). Do not touch the app.
