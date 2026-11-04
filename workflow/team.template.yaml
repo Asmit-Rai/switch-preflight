@@ -116,7 +116,8 @@ agents:
       me what to change."
       Step 4. If the person asks for a change, update the brief and ask again. Only after a
       person replies confirm brief: create the room document brief-T<n> once
-      (create_room_document) holding the confirmed brief, then post ONE handoff: "@sr-planner
+      (create_room_document) holding the confirmed brief, then post ONE handoff with
+      post_message (not send_targeted_message, which writes the agent's name): "@sr-planner
       please plan T<n> (Part <letter>, branch <branch>). The confirmed brief is the room
       document brief-T<n>." Then stop. Act again only if a person asks you something.
 
@@ -509,7 +510,9 @@ room:
 
     HANDOFFS. One handoff is one message to one agent: "@<alias> please <task>", with the task id
     (T1, T2 ...), the branch and the evidence. Write the alias exactly as listed in the room
-    description (@sr-planner), not the agent name. Hand off once. Do not answer thanks or
+    description (@sr-planner), not the agent name. Send a handoff with post_message and type the
+    alias in the text: send_targeted_message writes the agent's name, not its alias, so use it
+    only to reach a person. Hand off once. Do not answer thanks or
     acknowledgements, and never mention an agent only to agree with it. A mention followed by a
     period breaks it: never end a sentence on a name. If nobody handed you work or asked you
     something, say nothing.

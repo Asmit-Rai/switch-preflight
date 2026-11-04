@@ -212,7 +212,9 @@ class TemplateCase(unittest.TestCase):
             # Run 1, bug 2: the brief held only the section 6 items, so a section 4 rule (dependencies listed in the
             # README) was never planned, built or tested.
             "analyst": ["confirm brief", "list_participants", "brief-T<n>", "sections 1, 2, 4 and 6", "(section 4)",
-                        "at most three more numbered items"],
+                        "at most three more numbered items",
+                        # Run 3, bug 7: the hand-off went out with send_targeted_message, which writes the agent's name.
+                        "handoff with post_message"],
             "planner": ["approve", "exact command that runs", "never hand on a step that is not approved",
                         "plan-T<n>", "APPROVED:"],
             "executor": ["fail for the right reason", "least code", "whole suite", "skips or deletes a test",
@@ -246,7 +248,8 @@ class TemplateCase(unittest.TestCase):
         for phrase in ("SPEC.md", "WORKFLOW BUG:", "list_participants", "start-", "One part per run",
                        "not the agent name",  # run 1, bug 5: hand-offs went to @tdd-executor, not the alias
                        "approval card", "a command that deletes files",  # run 2, bug 6
-                       "refused at once"):  # the hook answers no, so a delete never waits for a click
+                       "refused at once",  # the hook answers no, so a delete never waits for a click
+                       "send_targeted_message writes the agent's name"):  # run 3, bug 7: only post_message carries an alias
             with self.subTest(room=phrase):
                 self.assertIn(phrase.lower(), room)
 
