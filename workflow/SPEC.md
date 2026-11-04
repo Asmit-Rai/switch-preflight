@@ -45,6 +45,9 @@ app to get past a workflow problem.
   reports PASS or FAIL for **every** "Done means" item with the evidence. It
   writes a test for any item that has no automated check. It never takes the
   Executor's word for anything.
+- From Part C on, browser tests (Playwright) start their own server on port
+  4399 (`PORT=4399`), never on 4321. A person may have `npm start` running on
+  4321, and a test run must not need it stopped.
 - A FAIL goes back to the Executor with a short reason. After three loops on
   the same item, stop and ask a person.
 
@@ -116,7 +119,7 @@ person draws is saved in the browser only.
 - **No AI inside the app.** No LLM calls and no API keys in the browser. The AI
   is the Switch agent, which uses the API in section 5.
 - **Runs offline.** No CDN, analytics or remote fonts.
-- **One command.** `npm install && npm start` on Node 20+ serves the app at
+- **One command.** `npm install && npm start` on Node 20.19+ serves the app at
   `http://127.0.0.1:4321`.
 - **A tiny in-memory relay is allowed** (Part C), because a web page cannot
   receive messages from an agent on its own. It stores nothing between
@@ -149,11 +152,13 @@ middleware mode), so there is one process and one port.
 Rules:
 - `POST` bodies must be `Content-Type: application/json` and at most 1 MB,
   otherwise 415 or 413.
-- If an `Origin` header is present and is not `http://127.0.0.1:4321` or
-  `http://localhost:4321`, return 403. This stops other websites drawing on the
-  board.
+- If an `Origin` header is present and is not `http://127.0.0.1:<port>` or
+  `http://localhost:<port>`, return 403. This stops other websites drawing on
+  the board. `<port>` is the port the server listens on: 4321, or the value of
+  `PORT`.
 - No browser has the board open: `POST /api/draw` returns **409** with
-  `{ok:false, error:"No board is open. Open http://127.0.0.1:4321 first."}`.
+  `{ok:false, error:"No board is open. Open http://127.0.0.1:4321 first."}`
+  (with the port the server listens on, 4321 unless `PORT` is set).
 - Invalid request: **422** with `{ok:false, errors:[{path, message, hint}]}`.
   The `hint` says exactly how to fix it, because an agent reads it and retries.
   The board is unchanged.
@@ -297,11 +302,17 @@ Done means:
 10. The empty-state hint shows on an empty board and disappears after the first
     shape. [unit]
 
+Left out of run 1: colour (8 swatches), fill, stroke width, zoom and pan are in
+the Build line above, but no item asks for them, so run 1 did not build them
+(section 2.3). They are Part C items 13 and 14.
+
 ### Part C: agents can draw shapes
 
 Build: the server (section 5), the events stream, scene sync, `shapes`
 requests, `scripts/draw.mjs`, the draw-in animation, the agent tag, the link
-pill, and "Undo AI".
+pill, and "Undo AI". Also what Part B left out: colour, fill, stroke width,
+zoom and pan (items 13 and 14), a port of its own for browser tests (item 15)
+and Node 20.19+ (item 16).
 
 Done means:
 1. `npm start` serves the app at port 4321 and listens on `127.0.0.1` only.
@@ -329,6 +340,23 @@ Done means:
     text. [browser]
 12. `node scripts/draw.mjs examples/house.json` exits 0 and draws. A bad file
     prints readable hints and exits 1. [API]
+13. Colour, fill and stroke width: the toolbar has 8 colour swatches (`black`,
+    `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `gray`), a fill choice
+    (`none`, `solid`, `hachure`) and a stroke width (1 to 6). A change applies
+    to the selected shape (one undo step) and to the next shape drawn. A shape
+    keeps its colour, fill and width after a reload. [unit + browser]
+14. Zoom and pan: zoom from 25% to 400% with Ctrl or Cmd and the wheel, and with
+    buttons named `Zoom in`, `Zoom out` and `100%`. Pan by dragging the empty
+    board while the space key is held. Zoom and pan never change a shape's
+    stored coordinates: a shape drawn at 200% zoom is stored at half the screen
+    distance, and agents always use coordinates at 100% zoom (section 5). Zoom
+    and pan are not saved and not part of undo. [unit + browser]
+15. Browser tests use port 4399 (`PORT=4399`): `e2e/smoke.spec.ts` and every
+    later browser test pass while `npm start` is running on port 4321. The
+    Origin rule of section 5 works on both ports. [browser: the Tester starts
+    `npm start` first, then runs `npm run test:e2e`]
+16. `package.json` has `engines.node` `>=20.19`, and the README says Node 20.19
+    or newer. [unit]
 
 ### Part D: diagrams and docs
 

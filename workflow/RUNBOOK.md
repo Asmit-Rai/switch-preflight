@@ -28,9 +28,11 @@ Files here: `SPEC.md` (the spec), `team.template.yaml` (the six agents and the r
 
 Anything else a person has to do is a workflow bug.
 
-One thing a person must NOT do during a run: start the app (`npm start`) on port 4321. The browser test of Part B and
-later starts its own server on 4321. If the port is taken, the executor (or tester) asks in the room and waits; it never
-kills a process it did not start. (Part B run 1 lost 69 minutes to this.) Look at the app after the tester has finished.
+One thing a person must NOT do during a run: start the app (`npm start`) on port 4321. In Part B the browser test starts
+its own server on 4321, and so do the Tester's own checks. If the port is taken, the executor (or tester) asks in the room
+and waits; it never kills a process it did not start. (Part B run 1 lost 69 minutes to this.) Look at the app after the
+tester has finished. From Part C on, the browser tests use port 4399 (SPEC Part C item 15), so `npm start` no longer
+blocks them; the Tester's own checks still use 4321, so the rule stays.
 
 ## 3. A workflow bug: stop, log, fix the template, run again
 
@@ -77,7 +79,21 @@ Answer yes or no for each, with the evidence (a quote from the room):
 
 If either agent misses it, that is a workflow bug: log it, fix the template, run Part A again.
 
-## 5. After Part A passes
+## 5. After a part passes
 
-Merge (step 2.4), then do Part B in a new room: Part `B`, Run number `1`, Last task id = the
-last task of Part A. Part B needs the new tag `start-b`. Parts C and D work the same way.
+Merge (step 2.4), then do the next part in a new room: Part `B` (then `C`, then `D`), Run number `1`,
+Last task id = the last task of the part before (Part A ended at T4, Part B at T5). Each part is cut from its own
+new tag: `start-b`, `start-c`, `start-d`.
+
+If `workflow/SPEC.md` changed since the folder's copy, put it into the folder on `main` and commit it BEFORE you tag,
+so the agents read the new one (the reset command only moves to a tag, it does not copy the spec):
+
+    git -C ~/hackthone/sketchroom switch main
+    git -C ~/hackthone/sketchroom merge --no-ff part-b-run1
+    cp workflow/SPEC.md ~/hackthone/sketchroom/SPEC.md
+    git -C ~/hackthone/sketchroom add SPEC.md
+    git -C ~/hackthone/sketchroom commit -m "spec: <what changed, who decided>"
+    git -C ~/hackthone/sketchroom tag start-c
+
+Then, for the run: stop the agent processes of the last run, `sh workflow/setup.sh --reset ~/hackthone/sketchroom start-c`
+(folder first, tag second), copy the template (`pbcopy < workflow/team.template.yaml`), and use it in Switch Console.

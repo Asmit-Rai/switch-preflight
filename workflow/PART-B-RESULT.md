@@ -1,8 +1,9 @@
 # Part B result, run 1: the workflow check (SPEC.md 2.5, points 1-7)
 
 **Run 1 passed: 13 of 13 items and the "Also" line.** Room `sketchroom-b-run1`, branch `part-b-run1`, tip `e7e1041`,
-Thu 5 Nov 00:28-02:28 IST. No workflow bug found (BUGS.md is unchanged). Nothing is merged: a person merges
-(RUNBOOK.md section 2); `main` is still `10130ac` (= tag `start-b`).
+Thu 5 Nov 00:28-02:28 IST. No workflow bug found (BUGS.md is unchanged).
+Merged on Asmit's word (Thu 5 Nov 02:35, "do all of it"): Sketchroom `main` = `19a728d` (--no-ff merge of `part-b-run1`,
+same tree as `e7e1041`). The SPEC changes below are committed on top as `6b9862d`, and the tag `start-c` is on that commit.
 
 Who typed what: the three person messages (`@sr-analyst ok`, `@sr-analyst confirm brief`, `@sr-planner approve 1-22`)
 were typed in Discord by the assistant (a Mac helper session, using Asmit's logged-in Discord in Brave), word for word
@@ -51,11 +52,25 @@ Independent check by the assistant (not an agent): a fresh clone of `part-b-run1
    commit). The executor named both in its hand-off and asked the reviewer to check them; the reviewer accepted both; no
    test was edited. **My call: not a bug.** Both depend on the Node and jsdom versions: watch them in Part C.
 
-## Still open for a person
+## Decided by Asmit (Thu 5 Nov 02:35, "do all of it") and done
 
-- The merge: `git -C ~/hackthone/sketchroom switch main`, `git -C ~/hackthone/sketchroom merge --no-ff part-b-run1`,
-  `git -C ~/hackthone/sketchroom tag start-c`.
-- Not built, because no item asks for it: zoom, pan, 8 colour swatches, fill, stroke width. Add to Part C or to the SPEC?
-- Reviewer note: a drag released outside the board stays stuck until the next click. Tester note: the board jumps up by
-  the hint's height when the empty-state hint goes away.
-- SPEC "Node 20+" vs the real 20.19: still unanswered (from Part A).
+1. **Merge:** done (see the top). Part C is cut from `start-c`.
+2. **Zoom, pan, colour swatches, fill, stroke width go into Part C:** SPEC Part C item 13 (colour, fill, stroke width) and
+   item 14 (zoom and pan). A note under Part B says run 1 left them out because no item asked for them (section 2.3).
+3. **Browser test on its own port:** SPEC section 2.2 (from Part C on, port 4399), Part C item 15. Section 5 had the port
+   4321 written into the Origin rule and the 409 message, which would have rejected the test on 4399: both now use the
+   port the server listens on. The RUNBOOK rule "do not start `npm start` during a run" stays, because the Tester's own
+   checks still use 4321.
+4. **Push:** the commit with this file and the SPEC and RUNBOOK changes went to GitHub together with `6cc6060`.
+5. **Node 20.19:** SPEC section 4 now says 20.19+, and Part C item 16 checks `package.json` `engines.node` and the README
+   (today they say `>=20` and "Node 20 or newer": the Part C Executor changes them, test first).
+
+Part C is bigger now: 16 items instead of 12. Part B took about 1 hour of work (2 hours with the 69-minute pause), so
+expect Part C to take longer.
+
+## Still open (small notes, no item asks for them)
+
+- Reviewer note: a drag released outside the board stays stuck until the next click.
+- Tester note: the board jumps up by the hint's height when the empty-state hint goes away.
+- Next: Part C run 1. Parameters: prefix `tdd6`, room `sketchroom-c-run1`, Part `C`, Run `1`, Last task id `T5`. Recipe: RUNBOOK
+  section 5. The template in Switch Console ("Sketchroom team v4") is unchanged, so no new import is needed.
