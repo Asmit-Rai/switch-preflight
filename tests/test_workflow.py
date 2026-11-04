@@ -209,18 +209,26 @@ class TemplateCase(unittest.TestCase):
 
     def test_each_agent_still_holds_the_rules_that_define_its_job(self) -> None:
         must_say = {
-            "analyst": ["confirm brief", "list_participants", "brief-T<n>"],
+            # Run 1, bug 2: the brief held only the section 6 items, so a section 4 rule (dependencies listed in the
+            # README) was never planned, built or tested.
+            "analyst": ["confirm brief", "list_participants", "brief-T<n>", "sections 1, 2, 4 and 6", "(section 4)",
+                        "at most three more numbered items"],
             "planner": ["approve", "exact command that runs", "never hand on a step that is not approved",
                         "plan-T<n>", "APPROVED:"],
             "executor": ["fail for the right reason", "least code", "whole suite", "skips or deletes a test",
                          "git switch -c", "never switch to main", "plan-T<n>", "package-lock.json",
                          "stop every server", "step <k> test:", "git add -A", "@sr-planner please fix step",
-                         "kill <pid>"],
+                         "kill <pid>",
+                         # Run 1, bug 3: a RED line was retyped wrongly once.
+                         "from memory", "compare it with the command output"],
+            # Run 1, bug 5: the Reviewer's hand-off to the Tester carried no evidence, against the room rule.
             "reviewer": ["tests first", "mock away", "approve", "changes needed", "plan-T<n>", "step <k> test:",
-                         "@sr-executor approved:", "make no handoff"],
+                         "@sr-executor approved:", "make no handoff", "@sr-tester please test T<n> on <branch> at <commit>"],
             "tester": ["git clone --branch", "npm ci", "PASS", "FAIL", "never take", "EVERY", "port 4321",
                        "headless browser", "step <k> test:", "make no handoff", "write no files"],
-            "advisor": ["closing note", "no rule slipped", "no issues", "plan-T<n>", "step <k> test:"],
+            # Run 1, bug 4: the Advisor called a package the Reviewer had counted inside section 4 "outside the plan".
+            "advisor": ["closing note", "no rule slipped", "no issues", "plan-T<n>", "step <k> test:",
+                        "named in its commit"],
         }
         def words(text: str) -> str:  # line breaks must not matter: a rewrapped paragraph is still the same rule
             return " ".join(text.split()).lower()
@@ -231,7 +239,8 @@ class TemplateCase(unittest.TestCase):
                 with self.subTest(role=role, phrase=phrase):
                     self.assertIn(phrase.lower(), text)
         room = words("\n".join(section(self.text, "room")))
-        for phrase in ("SPEC.md", "WORKFLOW BUG:", "list_participants", "start-", "One part per run"):
+        for phrase in ("SPEC.md", "WORKFLOW BUG:", "list_participants", "start-", "One part per run",
+                       "not the agent name"):  # run 1, bug 5: hand-offs went to @tdd-executor, not the alias
             with self.subTest(room=phrase):
                 self.assertIn(phrase.lower(), room)
 
