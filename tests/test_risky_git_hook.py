@@ -234,9 +234,9 @@ MUST_NOT_ASK = [
 ]
 
 
-def run_hook(payload: object, raw: str | None = None) -> subprocess.CompletedProcess[str]:
+def run_hook(payload: object, raw: str | None = None, args: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(HOOK)],
+        [sys.executable, str(HOOK), *args],
         input=raw if raw is not None else json.dumps(payload),
         capture_output=True,
         text=True,
@@ -301,6 +301,24 @@ class DecideTests(unittest.TestCase):
                 f"Preflight rule: this {reason}. A person must approve it.",
             )
 
+    def test_deny_mode_answers_no_at_once_and_says_what_to_do_instead(self) -> None:
+        # Sketchroom run 2, bug 6: in a room where nobody watches for cards, "ask" is a silent hang. "deny" is an
+        # answer the agent can act on.
+        answer = risky_git.decide({"tool_name": "Bash", "tool_input": {"command": "rm -rf dist"}}, deny=True)
+        assert answer is not None
+        out = answer["hookSpecificOutput"]
+        self.assertEqual(out["hookEventName"], "PreToolUse")
+        self.assertEqual(out["permissionDecision"], "deny")
+        reason = out["permissionDecisionReason"]
+        self.assertIn("this deletes files", reason)  # the same plain reason as in ask mode
+        for phrase in ("nobody can click", "was not run", "in one message", "then stop"):
+            self.assertIn(phrase, reason)
+        self.assertNotIn("A person must approve", reason)
+
+    def test_deny_mode_leaves_safe_commands_and_other_tools_alone(self) -> None:
+        self.assertIsNone(risky_git.decide({"tool_name": "Bash", "tool_input": {"command": "git status"}}, deny=True))
+        self.assertIsNone(risky_git.decide({"tool_name": "Read", "tool_input": {"file_path": "x"}}, deny=True))
+
     def test_other_tools_are_ignored(self) -> None:
         self.assertIsNone(risky_git.decide({"tool_name": "Read", "tool_input": {"file_path": "x"}}))
         self.assertIsNone(risky_git.decide({"tool_name": "Edit", "tool_input": {"command": "rm x"}}))
@@ -321,6 +339,19 @@ class ProcessTests(unittest.TestCase):
     def test_safe_command_prints_nothing(self) -> None:
         done = run_hook({"tool_name": "Bash", "tool_input": {"command": "git status"}})
         self.assertEqual((done.returncode, done.stdout), (0, ""))
+
+    def test_deny_flag_prints_deny_for_a_risky_command_and_nothing_for_a_safe_one(self) -> None:
+        risky = run_hook({"tool_name": "Bash", "tool_input": {"command": "git -C /x reset --hard y"}}, args=("--deny",))
+        self.assertEqual(risky.returncode, 0)
+        self.assertEqual(json.loads(risky.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")
+        safe = run_hook({"tool_name": "Bash", "tool_input": {"command": "git status"}}, args=("--deny",))
+        self.assertEqual((safe.returncode, safe.stdout), (0, ""))
+
+    def test_an_unknown_flag_never_blocks_work_and_keeps_asking(self) -> None:
+        # guard: a mistyped flag must not become exit 2 (Claude Code reads that as a blocking error for every command)
+        done = run_hook({"tool_name": "Bash", "tool_input": {"command": "rm -rf dist"}}, args=("--bogus",))
+        self.assertEqual(done.returncode, 0)
+        self.assertEqual(json.loads(done.stdout)["hookSpecificOutput"]["permissionDecision"], "ask")
 
     def test_gh_write_and_target_switch_print_ask_but_show_and_view_do_not(self) -> None:
         for command, asks in (("FOO=1 gh issue create --title x", True), ("kit/pf target sample", True),

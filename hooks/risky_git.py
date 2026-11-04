@@ -11,6 +11,10 @@ answers {"permissionDecision": "ask"}. Claude Code then asks the person (in a Sw
 a permission card with Allow once / Allow for this session / Decline). Anything else is left alone
 (no output, exit 0), so the normal permission rules still apply.
 
+With the flag `--deny` it answers {"permissionDecision": "deny"} instead, with a reason that says what
+to do (use another way, or say which command was needed in one message and stop). Use it where nobody
+watches for permission cards: an unanswered card is a silent hang, a refusal is an answer.
+
 Risky means:
   * rewriting or throwing away git history or work: reset, rebase, filter-branch, filter-repo,
     commit --amend, update-ref, replace, reflog expire/delete, gc --prune, clean, stash drop/clear,
@@ -241,8 +245,13 @@ def _gh_api_write(args: list[str]) -> str | None:
 _RULES = (_switches_target, _acts_on_github)
 
 
-def decide(payload: object) -> dict | None:
-    """The hook's answer for one tool call, or None to stay silent."""
+def decide(payload: object, deny: bool = False) -> dict | None:
+    """The hook's answer for one tool call, or None to stay silent.
+
+    By default a risky command asks a person. With deny=True (the `--deny` flag) it is refused at
+    once, with a reason the agent can act on: for a room where nobody watches for permission cards,
+    an unanswered card is a silent hang.
+    """
     if not isinstance(payload, dict):
         return None
     if payload.get("tool_name") != "Bash":
@@ -252,21 +261,32 @@ def decide(payload: object) -> dict | None:
     reason = risky_reason(command) if isinstance(command, str) else None
     if reason is None:
         return None
+    if deny:
+        decision = "deny"
+        text = (
+            f"Preflight rule: this {reason}. In this room nobody can click an approval card, so it was not run. "
+            "Do not retry it. Use a way that does not do this (for example a new clone, or git switch --detach). "
+            "If there is none, say which command you needed in one message in the room, then stop."
+        )
+    else:
+        decision = "ask"
+        text = f"Preflight rule: this {reason}. A person must approve it."
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "permissionDecision": "ask",
-            "permissionDecisionReason": f"Preflight rule: this {reason}. A person must approve it.",
+            "permissionDecision": decision,
+            "permissionDecisionReason": text,
         }
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    deny = "--deny" in (sys.argv[1:] if argv is None else argv)  # any other flag is ignored: never block work by a typo
     try:
         payload = json.load(sys.stdin)
     except (ValueError, OSError):
         return 0  # not a tool call we understand: do nothing, never block work by mistake
-    answer = decide(payload)
+    answer = decide(payload, deny=deny)
     if answer is not None:
         print(json.dumps(answer))
     return 0
