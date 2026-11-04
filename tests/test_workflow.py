@@ -207,6 +207,13 @@ class TemplateCase(unittest.TestCase):
         for placeholder in ("{part}", "{run}", "{last_task}"):
             self.assertIn(placeholder, kickoff)
 
+    def test_the_executor_posts_deciding_lines_and_not_the_last_lines_of_a_run(self) -> None:
+        # Run 1 and run 3, bug 3: the timing lines of a test run (Start at, Duration) are full of numbers and are the
+        # lines an agent retypes wrongly. The deciding lines are enough, and fewer lines are fewer chances to slip.
+        text = " ".join(self.agent("executor")["fields"]["instructions"].split()).lower()
+        self.assertNotIn("last 15 lines", text)
+        self.assertNotIn("last 10 lines", text)
+
     def test_each_agent_still_holds_the_rules_that_define_its_job(self) -> None:
         must_say = {
             # Run 1, bug 2: the brief held only the section 6 items, so a section 4 rule (dependencies listed in the
@@ -222,7 +229,9 @@ class TemplateCase(unittest.TestCase):
                          "stop every server", "step <k> test:", "git add -A", "@sr-planner please fix step",
                          "kill <pid>",
                          # Run 1, bug 3: a RED line was retyped wrongly once.
-                         "from memory", "compare it with the command output"],
+                         "from memory", "compare it with the command output",
+                         # Run 3, bug 3 again: a Duration line was retyped wrongly (1.40s for 1.17s).
+                         "only the lines that decide the result", "leave out the `start at` and `duration` lines"],
             # Run 1, bug 5: the Reviewer's hand-off to the Tester carried no evidence, against the room rule.
             "reviewer": ["tests first", "mock away", "approve", "changes needed", "plan-T<n>", "step <k> test:",
                          "@sr-executor approved:", "make no handoff", "@sr-tester please test T<n> on <branch> at <commit>"],

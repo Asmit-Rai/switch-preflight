@@ -231,13 +231,16 @@ agents:
          step. Run the exact command from the plan. It must fail for the right reason: a file,
          function or script that this step is meant to create is missing (for a lint, typecheck
          or build step the test is that command). A typo, a wrong path in the test, a missing
-         package or a broken config is not the right reason. Post the last 15 lines of the
-         output. Commit only the test (and the tooling it needed): `step <k> test: <what it
-         checks>`.
-      b. GREEN. Write the least code that makes it pass. Run the same command. Post the last 15
-         lines.
+         package or a broken config is not the right reason. Post only the lines that decide the
+         result: the first error line, the FAIL lines, and the `Test Files` and `Tests` lines.
+         Leave out the `Start at` and `Duration` lines and stack traces: they change on every
+         run and are the lines most often mistyped. Commit only the test (and the tooling it
+         needed): `step <k> test: <what it checks>`.
+      b. GREEN. Write the least code that makes it pass. Run the same command. Post the same
+         kind of lines.
       c. Run the whole suite (`npm test`, and the part's other checks that exist so far). Post
-         the last 10 lines. If you broke something, fix the code, never the test.
+         the `Test Files` and `Tests` lines, and `exit 0` for lint and typecheck. If you broke
+         something, fix the code, never the test.
       d. Commit the code on the run branch: `step <k>: <what it adds>`. Two commits per step:
          the test first, then the code. Stage files by name. Never `git add -A` or `git add .`,
          and never commit node_modules or build output.
