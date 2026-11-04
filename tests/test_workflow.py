@@ -224,8 +224,11 @@ class TemplateCase(unittest.TestCase):
             # Run 1, bug 5: the Reviewer's hand-off to the Tester carried no evidence, against the room rule.
             "reviewer": ["tests first", "mock away", "approve", "changes needed", "plan-T<n>", "step <k> test:",
                          "@sr-executor approved:", "make no handoff", "@sr-tester please test T<n> on <branch> at <commit>"],
+            # Run 2, bug 6: the tester ran `rm -rf dist`, the approval hook asked, and it waited for a click that
+            # nobody knew was needed.
             "tester": ["git clone --branch", "npm ci", "PASS", "FAIL", "never take", "EVERY", "port 4321",
-                       "headless browser", "step <k> test:", "make no handoff", "write no files"],
+                       "headless browser", "step <k> test:", "make no handoff", "write no files",
+                       "never delete anything", "git switch --detach", "its own second clone"],
             # Run 1, bug 4: the Advisor called a package the Reviewer had counted inside section 4 "outside the plan".
             "advisor": ["closing note", "no rule slipped", "no issues", "plan-T<n>", "step <k> test:",
                         "named in its commit"],
@@ -240,7 +243,8 @@ class TemplateCase(unittest.TestCase):
                     self.assertIn(phrase.lower(), text)
         room = words("\n".join(section(self.text, "room")))
         for phrase in ("SPEC.md", "WORKFLOW BUG:", "list_participants", "start-", "One part per run",
-                       "not the agent name"):  # run 1, bug 5: hand-offs went to @tdd-executor, not the alias
+                       "not the agent name",  # run 1, bug 5: hand-offs went to @tdd-executor, not the alias
+                       "approval card", "a command that deletes files"):  # run 2, bug 6
             with self.subTest(room=phrase):
                 self.assertIn(phrase.lower(), room)
 
