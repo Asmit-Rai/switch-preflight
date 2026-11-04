@@ -172,12 +172,17 @@ class TemplateCase(unittest.TestCase):
     def test_each_agent_still_holds_the_rules_that_define_its_job(self) -> None:
         must_say = {
             "analyst": ["confirm brief", "list_participants", "brief-T<n>"],
-            "planner": ["approve", "exact command that runs", "never hand on a step that is not approved"],
+            "planner": ["approve", "exact command that runs", "never hand on a step that is not approved",
+                        "plan-T<n>", "APPROVED:"],
             "executor": ["fail for the right reason", "least code", "whole suite", "skips or deletes a test",
-                         "git switch -c", "never switch to main"],
-            "reviewer": ["tests first", "mock away", "approve", "changes needed"],
-            "tester": ["git clone --branch", "npm ci", "PASS", "FAIL", "never take", "EVERY"],
-            "advisor": ["closing note", "no rule slipped", "no issues"],
+                         "git switch -c", "never switch to main", "plan-T<n>", "package-lock.json",
+                         "stop every server", "step <k> test:", "git add -A", "@planner please fix step",
+                         "kill <pid>"],
+            "reviewer": ["tests first", "mock away", "approve", "changes needed", "plan-T<n>", "step <k> test:",
+                         "@executor approved:", "make no handoff"],
+            "tester": ["git clone --branch", "npm ci", "PASS", "FAIL", "never take", "EVERY", "port 4321",
+                       "headless browser", "step <k> test:", "make no handoff", "write no files"],
+            "advisor": ["closing note", "no rule slipped", "no issues", "plan-T<n>", "step <k> test:"],
         }
         def words(text: str) -> str:  # line breaks must not matter: a rewrapped paragraph is still the same rule
             return " ".join(text.split()).lower()
@@ -209,9 +214,13 @@ class FilesCase(unittest.TestCase):
     def test_the_permission_file_allows_the_test_tools_and_names_the_approval_hook(self) -> None:
         settings = json.loads((WORKFLOW / "claude-settings.json").read_text(encoding="utf-8"))
         allow = settings["permissions"]["allow"]
-        for rule in ("Bash(npm ci:*)", "Bash(npm test:*)", "Bash(npm run:*)", "Bash(npx:*)", "Bash(git commit:*)"):
+        for rule in ("Bash(npm ci:*)", "Bash(npm test:*)", "Bash(npm run:*)", "Bash(npx:*)", "Bash(git commit:*)",
+                     "Bash(kill:*)", "Bash(lsof:*)"):
             self.assertIn(rule, allow)
-        self.assertFalse([rule for rule in allow if "push" in rule or "reset" in rule or "rm" in rule.split("(")[1][:3]])
+        # never allowed without a person: sending work away, rewriting history, deleting files, killing by name
+        for word in ("push", "reset", "rebase", "clean", "pkill", "killall", "rm "):
+            self.assertFalse([rule for rule in allow if word in rule], word)
+        self.assertFalse([rule for rule in allow if rule.startswith("Bash(rm")])
         self.assertIn("__HOOK__", settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"])
 
 

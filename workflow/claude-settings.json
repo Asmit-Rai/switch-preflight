@@ -20,7 +20,9 @@
       "Bash(node:*)",
       "Bash(curl:*)",
       "Bash(mkdir:*)",
-      "Bash(sleep:*)"
+      "Bash(sleep:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)"
     ],
     "additionalDirectories": ["/tmp", "/private/tmp"]
   },

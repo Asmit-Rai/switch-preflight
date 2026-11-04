@@ -65,7 +65,8 @@ Answer yes or no for each, with the evidence (a quote from the room):
 
 1. `git switch -c catch-check part-a-run1`
 2. Change the page heading in the code (not the test) so it no longer says "Sketchroom". Commit.
-   Ask `@tester` and `@reviewer` to check `catch-check`. Both must report it.
+   Ask `@tester` and `@reviewer` to check `catch-check`. Both must report it. They only report:
+   a branch with no task gets no hand-off.
 3. Also edit the test to expect the wrong heading, so `npm test` passes. Commit.
    The tester must still FAIL the item. The reviewer must flag the edited test.
 4. `git switch part-a-run1`, then `git branch -D catch-check`.
