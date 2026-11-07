@@ -1,12 +1,16 @@
 # Preflight
 
-[![CI](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/ci.yml/badge.svg)](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/ci.yml)
-[![Preflight](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/preflight.yml/badge.svg)](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/preflight.yml)
+[![CI](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/ci.yml/badge.svg) ](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/ci.yml)
+[![Preflight](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/preflight.yml/badge.svg) ](https://github.com/Asmit-Rai/switch-preflight/actions/workflows/preflight.yml)
 
 **A Switch room that will not let a team ship a broken submission.**
 Built for the Flip the Switch hackathon (WeMakeDevs x DevTools Academy x Switch AI) by Team AXA.
 
-> Demo video: _coming soon_ (this line gets the link before we submit)
+> Demo video (4:05): [open the release page](https://github.com/Asmit-Rai/switch-preflight/releases/tag/demo-video-v1)
+> and click `demo.mp4` (GitHub gives release files as a download, not a player).
+>
+> This repository holds two Switch rooms: **Preflight** (checks a submission before it is sent) and **wf**
+> (builds a change test first). The video shows **wf**; see [wf agents, Discord and how to run it](#wf-agents-discord-and-how-to-run-it).
 
 Teams lose contests and launches on avoidable misses: a README section nobody wrote, no licence, a
 secret in git history, a failing test, a video that is too long. Not on code. Preflight is a room in
@@ -38,7 +42,7 @@ One Switch room, four agents, one human decision-maker (the Captain):
    READY for this exact commit, with a clean tree, a fresh result, and the approved fingerprint.
    Then it writes `SUBMISSION.md` and a one-page `report.html`, and attaches both in the room.
 
-A sixth agent, **Spare**, waits outside the room. The "fresh agent test": invite it and watch it catch
+A fifth agent, **Spare**, waits outside the room. The "fresh agent test": invite it and watch it catch
 up from the room alone.
 
 ## Why Switch is central
@@ -126,7 +130,7 @@ What `setup-demo.sh` installs, and why a person (not an agent) does it:
 ```sh
 kit/pf target https://github.com/owner/repo   # or a local folder, or `sample`; --show says what is loaded
 kit/pf doctor                                 # is this machine ready? one-line fix for each problem
-kit/pf run --project project --rules rules/approved.toml --html report.html   # a one-page report
+kit/pf run --project project --rules kit/rules/flip-the-switch.toml --html report.html   # a one-page report
 ```
 
 In the room, ask `@fixer switch the project to <link>` (the Captain gets a permission card first).
@@ -138,7 +142,7 @@ The same checks also run as a GitHub Action, so they can block a bad merge: see
 ```sh
 python3 examples/make_sample.py /tmp/sample
 python3 -m preflight run --project /tmp/sample --rules rules/flip-the-switch.toml --format table
-python3 -m unittest discover -s tests          # 240+ tests, all offline, about 70 seconds
+python3 -m unittest discover -s tests          # 520+ tests, all offline, a few minutes
 ```
 
 ## Architecture
@@ -193,14 +197,14 @@ against files and git, not only against what an agent said:
 - One thing went wrong, and we fixed it: the merge step (`git reset --hard`) ran with **no card**.
   Our first permission rule only matched commands that start with `git reset`, and the Fixer wrote
   `git -C /path reset`. Whether a card appeared had depended on how the agent worded the command. We
-  replaced the rule with the approval hook, which reads the command itself, and pinned it with 11
+  replaced the rule with the approval hook, which reads the command itself, and pinned it with 20
   tests that cover many spellings.
 
 ## Reused vs built during the hackathon
 
 Built after the hackathon opened (00:01 IST, 4 Nov 2026; the first commit is at 00:08): this
 repository, the checker, the rulesets, the sample project, the approval hook, the Switch template,
-the five agents, the room and the workflow. Every commit is dated after the start, and the checker's
+the five agents, the room and the wf build room. Every commit is dated after the start, and the checker's
 `first-commit-after-start` check proves it on this repository.
 
 Reused, and made before the start:
@@ -237,7 +241,48 @@ Reused, and made before the start:
 ## Team and licence
 
 Team AXA: Asmit Rai (team leader) and Aman Gupta. The submission is made by a person, as the rules
-require. This project was built with AI help (an AI assistant running Claude and several Claude Code
-sessions), as the rules allow.
+require. This project was built with AI help (Claude and Claude Code), as the rules allow.
 
 Released under the [MIT licence](LICENSE).
+
+## wf: the build room
+
+Say `@manager <what you want>` in a chat room, and get a change that is specified, planned, built test first,
+reviewed, tested from a clean clone, and shipped after one click. Seven agents (manager, specifier, planner,
+builder, reviewer, tester, shipper) do the work. The `./wf` tool holds the state, the rules, the evidence and the
+ship gate, so no agent can skip a step: the model proposes, code decides. With no chat app, you run the same
+`./wf` commands in a terminal.
+
+The video shows this room. The agent table, the Discord setup and the start commands are in the next section.
+
+- Runbook: [`docs/WF.md`](docs/WF.md): setup, the five checks before the first import, what to say, what to do when things go wrong
+- Switch template: [`templates/wf.template.yaml`](templates/wf.template.yaml)
+
+## wf agents, Discord and how to run it
+
+Agents we connected for wf (all run on Claude Code, started by Switch Console from
+[`templates/wf.template.yaml`](templates/wf.template.yaml)):
+
+| Agent | Job |
+|---|---|
+| `wf-manager` | the only one you talk to; starts and closes a task |
+| `wf-specifier` | writes the spec as numbered checks |
+| `wf-planner` | turns the spec into steps, each with a test |
+| `wf-builder` | writes the test, then the code, one commit per step |
+| `wf-reviewer` | reads the change and approves it or sends it back |
+| `wf-tester` | tests every item from a clean clone |
+| `wf-shipper` | opens the pull request after one click from a person |
+
+Discord is set up the same way as for Preflight (see "How the channel is set up"). The template's `bridge` input
+picks the Discord connection.
+
+To run it:
+
+```sh
+python3 -m wf init ~/myproject      # once: makes .workflow/ and the ./wf launcher in your project (a git repo)
+cd ~/myproject && ./wf doctor       # says "Ready" or gives one fix per problem
+```
+
+Then in Switch Console: **Templates, Import template**, paste `templates/wf.template.yaml`, **Use**, pick
+`~/myproject` as the project folder, **Create all**. Say `@manager <what you want built>` in the new Discord channel.
+With no chat app, run the same `./wf` commands in a terminal. Full runbook: [`docs/WF.md`](docs/WF.md).

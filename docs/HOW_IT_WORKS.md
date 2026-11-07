@@ -27,7 +27,7 @@ or no to anything risky.
 | **Fixer** (agent) | Fixes red checks on a separate branch | Asks you before risky git steps |
 | **Reviewer** (agent) | Reads the fix and gives advice | It cannot change anything or approve anything |
 | **Spare** (agent) | Waits outside the room | Shows a new agent catching up from the room alone |
-| **The checker** (`kit/pf`) | A Python program, 14 kinds of check, 240+ tests | This is what decides |
+| **The checker** (`kit/pf`) | A Python program, 14 kinds of check, 520+ tests | This is what decides |
 | **The gate** | `verdict` and `pack` commands | "Ready" only if the last run was READY for this exact commit, the tree is clean, the result is fresh and the check list is the one you approved |
 | **The approval hook** | A small program that reads each shell command before it runs | Makes risky commands (git reset, push, rm...) ask you, however the agent words them |
 

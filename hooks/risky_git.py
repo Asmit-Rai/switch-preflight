@@ -15,6 +15,13 @@ With the flag `--deny` it answers {"permissionDecision": "deny"} instead, with a
 to do (use another way, or say which command was needed in one message and stop). Use it where nobody
 watches for permission cards: an unanswered card is a silent hang, a refusal is an answer.
 
+With `--policy wf` (or `--policy=wf`) it guards a wf build room, where agents run `./wf <command>` and
+only `./wf commit` may commit and only `./wf ship` may push or merge. Two tiers. Deny: everything risky
+below, plus git switch/checkout, add, commit, cherry-pick, revert, am, every stash form, merge, pull,
+and npm/pnpm/yarn publish, each with a reason that names the ./wf command to use. Ask (a permission
+card): `./wf ship` only, so a person's click is what lets a task ship. Deny wins over ask, and `--deny`
+changes nothing under this policy. Any other --policy value is ignored: the default rules apply.
+
 Risky means:
   * rewriting or throwing away git history or work: reset, rebase, filter-branch, filter-repo,
     commit --amend, update-ref, replace, reflog expire/delete, gc --prune, clean, stash drop/clear,
@@ -128,7 +135,9 @@ def _strip_text(command: str) -> str:
         inner = match.group(0)[1:-1]
         if "$(" in inner or "`" in inner:
             return match.group(0)
-        return '"' + " " * len(inner) + '"'
+        # Empty quotes, like a single-quoted string: a quoted option value (git -C "/a b" push) must stay
+        # one word, or the git rules lose the subcommand behind it.
+        return '""'
 
     return re.sub(r'"(?:\\.|[^"\\])*"', blank_double, command)
 
@@ -245,12 +254,77 @@ def _gh_api_write(args: list[str]) -> str | None:
 _RULES = (_switches_target, _acts_on_github)
 
 
-def decide(payload: object, deny: bool = False) -> dict | None:
+# --policy wf: in a wf build room only `./wf commit` commits and only `./wf ship` pushes or merges
+# (docs/WF.md, section 7). These patterns are
+# refused on top of everything risky above. The subcommand must end where the pattern ends, so longer
+# words such as `git merge-base` or `git checkout-index` are not caught.
+_WF_END = r"(?![\w-])"
+_WF_DENY: list[tuple[str, re.Pattern[str]]] = [
+    ("switches branches: ./wf build start puts the builder on the task branch, and the tester works in the clean "
+     "clone from ./wf test start", re.compile(_GIT + r"(?:switch|checkout)" + _WF_END)),
+    ('stages files outside wf: use ./wf commit --step <k> -m "<what>" -- <files>', re.compile(_GIT + r"add" + _WF_END)),
+    ("makes a commit outside wf: use ./wf commit", re.compile(_GIT + r"(?:commit|cherry-pick|revert|am)" + _WF_END)),
+    ("stashes work, which makes a dirty tree look clean: commit with ./wf commit instead",
+     re.compile(_GIT + r"stash" + _WF_END)),
+    ("merges branches: only ./wf ship merges, after a person clicks Allow once",
+     re.compile(_GIT + r"(?:merge|pull)" + _WF_END)),
+    # npm, pnpm or yarn, any global options (with or without a value), then publish. `yarn npm publish` too.
+    ("publishes a package", re.compile(
+        r"(?:^|[\s;&|(`/'\"])(?:npm|pnpm|yarn)(?:\s+-\S+(?:\s+[^\s;&|()`'\"-]\S*)?)*\s+publish" + _WF_END)),
+]
+# `./wf ship`, `/abs/kit/wf ship`, `wf ship` or `python3 -m wf ship`: the one command that asks a person.
+_WF_SHIP = (
+    re.compile(r"(?:^|[\s;&|(`/'\"])(?:\S*/)?wf\s+ship" + _WF_END),
+    re.compile(r"-m\s*wf(?:\.__main__|\.cli)?\s+ship" + _WF_END),
+)
+# Read on the raw command too: `./wf "ship"`, `./wf 'ship'` or options between `wf` and `ship` must still ask.
+# Only option words may stand between them, so a commit message such as -m "ship it" never asks.
+_WF_SHIP_RAW = re.compile(
+    r"(?:^|[\s;&|(`/'\"])(?:\S*/)?wf[\"']?(?:\s+(?:--?[A-Za-z][\w-]*(?:=\S+|\s+[^\s-]\S*)?|--))*\s+[\"']?ship[\"']?"
+    + _WF_END
+)
+_WF_SHIP_MODULE = re.compile(r"-m\s*[\"']?wf(?:\.__main__|\.cli)?[\"']?\s+[\"']?ship[\"']?" + _WF_END)
+_WF_SHIP_REASON = "ships the task (./wf ship): it pushes the branch and opens the pull request, or merges into main"
+
+
+def _stripped_texts(command: str) -> list[str]:
+    """The stripped texts risky_reason reads: the command without heredoc bodies and quoted strings, and
+    the code inside `bash -c '...'` or `eval "..."` (stripped the same way) when the command runs a string."""
+    texts = [_strip_text(command)]
+    if _RUNS_A_STRING.search(command):
+        texts += _inner_commands(command)
+    return texts
+
+
+def wf_decision(command: str) -> tuple[str, str] | None:
+    """The wf room's answer for one shell command: ("deny", reason), ("ask", reason) or None.
+
+    Deny: everything risky_reason finds, and git work done around wf (_WF_DENY). Ask: `./wf ship`.
+    Deny wins over ask, so `./wf ship && git push` is refused, not put to a person.
+    """
+    if not isinstance(command, str) or not command.strip():
+        return None
+    reason = risky_reason(command)
+    if reason is not None:
+        return ("deny", reason)
+    texts = _stripped_texts(command)
+    for text in texts:
+        for wf_reason, pattern in _WF_DENY:
+            if pattern.search(text):
+                return ("deny", wf_reason)
+    if (any(pattern.search(text) for text in texts for pattern in _WF_SHIP)
+            or _WF_SHIP_RAW.search(command) or _WF_SHIP_MODULE.search(command)):
+        return ("ask", _WF_SHIP_REASON)
+    return None
+
+
+def decide(payload: object, deny: bool = False, policy: str | None = None) -> dict | None:
     """The hook's answer for one tool call, or None to stay silent.
 
     By default a risky command asks a person. With deny=True (the `--deny` flag) it is refused at
     once, with a reason the agent can act on: for a room where nobody watches for permission cards,
-    an unanswered card is a silent hang.
+    an unanswered card is a silent hang. With policy="wf" (the `--policy wf` flag) the wf room's two
+    tiers apply instead (wf_decision) and `deny` changes nothing. Any other policy is ignored.
     """
     if not isinstance(payload, dict):
         return None
@@ -258,6 +332,8 @@ def decide(payload: object, deny: bool = False) -> dict | None:
         return None
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if policy == "wf":
+        return _wf_answer(command)
     reason = risky_reason(command) if isinstance(command, str) else None
     if reason is None:
         return None
@@ -271,6 +347,28 @@ def decide(payload: object, deny: bool = False) -> dict | None:
     else:
         decision = "ask"
         text = f"Preflight rule: this {reason}. A person must approve it."
+    return _answer(decision, text)
+
+
+def _wf_answer(command: object) -> dict | None:
+    """decide() under --policy wf."""
+    found = wf_decision(command) if isinstance(command, str) else None
+    if found is None:
+        return None
+    decision, reason = found
+    if decision == "deny":
+        text = (
+            f"wf rule: this {reason}. It was not run. Do not retry it or look for a way around it. "
+            "If you cannot go on without it, run ./wf ask 'the command you needed, in plain words' "
+            "--default 'what you do instead, without that command', post what it prints, then stop."
+        )
+    else:
+        text = f"wf rule: this {reason}. A person must approve it."
+    return _answer(decision, text)
+
+
+def _answer(decision: str, text: str) -> dict:
+    """The shape Claude Code reads from a PreToolUse hook."""
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -280,13 +378,29 @@ def decide(payload: object, deny: bool = False) -> dict | None:
     }
 
 
+def _policy(args: list[str]) -> str | None:
+    """"wf" for `--policy wf` or `--policy=wf`; None when no policy is given or the value is not one we know."""
+    for i, arg in enumerate(args):
+        if arg == "--policy":
+            value = args[i + 1] if i + 1 < len(args) else ""
+        elif arg.startswith("--policy="):
+            value = arg.split("=", 1)[1]
+        else:
+            continue
+        if value == "wf":
+            return value
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
-    deny = "--deny" in (sys.argv[1:] if argv is None else argv)  # any other flag is ignored: never block work by a typo
+    args = sys.argv[1:] if argv is None else argv
+    deny = "--deny" in args  # any other flag is ignored: never block work by a typo
+    policy = _policy(args)  # an unknown --policy value is ignored the same way: the default rules apply
     try:
         payload = json.load(sys.stdin)
     except (ValueError, OSError):
         return 0  # not a tool call we understand: do nothing, never block work by mistake
-    answer = decide(payload, deny=deny)
+    answer = decide(payload, deny=deny, policy=policy)
     if answer is not None:
         print(json.dumps(answer))
     return 0

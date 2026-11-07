@@ -19,8 +19,8 @@ import risky_git  # noqa: E402
 MUST_ASK = [
     "git reset --soft HEAD~1",
     "git reset --hard preflight/fix-1",
-    "git -C /Users/apple/preflight-demo/project reset --hard preflight/fix-1",
-    "cd /Users/apple/preflight-demo/project && git reset --hard x && git log --oneline -1",
+    "git -C /Users/me/preflight-demo/project reset --hard preflight/fix-1",
+    "cd /Users/me/preflight-demo/project && git reset --hard x && git log --oneline -1",
     "git -C project -c user.name=x reset HEAD~1",
     "FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --tree-filter 'rm -f x' -- c54f7ae..fix-1",
     "git filter-repo --path a",
@@ -72,10 +72,10 @@ MUST_ASK = [
     "find . -name '*.tmp' -exec rm {} \\;",
     "ls | xargs rm",
     # the demo scripts replace the project and the permission file, however they are started
-    "sh kit/scripts/reset-demo.sh /Users/apple/preflight-demo",
+    "sh kit/scripts/reset-demo.sh /Users/me/preflight-demo",
     "cd kit && sh scripts/setup-demo.sh ~/preflight-demo https://github.com/team/app",
     "./kit/scripts/setup-demo.sh",
-    "bash -x /Users/apple/preflight-demo/kit/scripts/reset-demo.sh",
+    "bash -x /Users/me/preflight-demo/kit/scripts/reset-demo.sh",
     "FOO=1 sh scripts/reset-demo.sh",
     ". kit/scripts/reset-demo.sh",
     "zsh -lc 'sh kit/scripts/setup-demo.sh'",
@@ -88,7 +88,7 @@ MUST_ASK_TARGET = [
     "kit/pf target /Users/me/code/app --into project --branch main",
     "python3 -m preflight target git@github.com:team/app.git",
     "python3 kit/pf target sample",
-    "cd /Users/apple/preflight-demo && kit/pf target sample",
+    "cd /Users/me/preflight-demo && kit/pf target sample",
     "bash -c 'kit/pf target sample'",
     "bash -c 'kit/pf target sample' --show",  # that --show goes to bash, not to pf
     "bash -c \"bash -c 'kit/pf target sample' --show\"",
