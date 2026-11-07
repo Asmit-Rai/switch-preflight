@@ -6,8 +6,8 @@
 **A Switch room that will not let a team ship a broken submission.**
 Built for the Flip the Switch hackathon (WeMakeDevs x DevTools Academy x Switch AI) by Team AXA.
 
-> Demo video (4:05): [open the release page](https://github.com/Asmit-Rai/switch-preflight/releases/tag/demo-video-v1)
-> and click `demo.mp4` (GitHub gives release files as a download, not a player).
+> Demo video (4:05): [watch on YouTube](https://www.youtube.com/watch?v=idxhPqBMA9U)
+> (the full-quality 1080p file is on the [GitHub release](https://github.com/Asmit-Rai/switch-preflight/releases/tag/demo-video-v1); click `demo.mp4`, GitHub gives release files as a download, not a player).
 >
 > This repository holds two Switch rooms: **Preflight** (checks a submission before it is sent) and **wf**
 > (builds a change test first). The video shows **wf**; see [wf agents, Discord and how to run it](#wf-agents-discord-and-how-to-run-it).
